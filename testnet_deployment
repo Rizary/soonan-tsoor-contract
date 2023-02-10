@@ -1,0 +1,43 @@
+name: Develop - SoonanTsoor
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+    tags:
+      - '*'
+  pull_request:
+  
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v1
+      - name: install node
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      #- name: Run tests
+      #  run: forge test -vvv
+        
+      - name: Deploy contract to testnet
+        run: |
+          forge create --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY -c src/SoonanTsoorNFT.sol SoonanTsoorNFT --constructor-args 0xE097d6B3100777DC31B34dC2c58fB524C2e76921
+        env:
+          POLYGON_MUMBAI_URL: ${{ secrets.POLYGON_MUMBAI_URL }}
+          POLYGON_MUMBAI_PRIVATE_KEY: ${{ POLYGON_MUMBAI_PRIVATE_KEY }}
