@@ -37,7 +37,7 @@ jobs:
         
       - name: Deploy contract to testnet
         run: |
-          forge create -vvv --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY -c src/SoonanTsoorNFT.sol SoonanTsoorNFT --constructor-args 0xE097d6B3100777DC31B34dC2c58fB524C2e76921
+          forge create --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY -c src/SoonanTsoorNFT.sol SoonanTsoorNFT --constructor-args 0xE097d6B3100777DC31B34dC2c58fB524C2e76921 -- -vvv
         env:
           POLYGON_MUMBAI_URL: ${{ secrets.POLYGON_MUMBAI_URL }}
           POLYGON_MUMBAI_PRIVATE_KEY: ${{ secrets.POLYGON_MUMBAI_PRIVATE_KEY }}
