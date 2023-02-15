@@ -1,6 +1,8 @@
 # Compiler files
 cache/
 out/
+out*
+cache*
 # Foundry
 foundry-out
 foundry-cache
