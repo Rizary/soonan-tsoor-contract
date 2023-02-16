@@ -37,7 +37,8 @@ jobs:
         
       - name: Deploy contract to testnet
         run: |
-          just mumbai
+          # just mumbai
+          echo "Deploy disabled"
         env:
           POLYGON_MUMBAI_URL: ${{ secrets.POLYGON_MUMBAI_URL }}
           POLYGON_MUMBAI_PRIVATE_KEY: ${{ secrets.POLYGON_MUMBAI_PRIVATE_KEY }}
