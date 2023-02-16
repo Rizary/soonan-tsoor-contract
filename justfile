@@ -6,7 +6,7 @@ local:
 
 mumbai:
     #!/usr/bin/env bash
-    forge create --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY -c src/ProudCamel.sol ProudCamel --constructor-args 0xE097d6B3100777DC31B34dC2c58fB524C2e76921
+    USDC_ADDRESS=0xE097d6B3100777DC31B34dC2c58fB524C2e76921 forge script --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY -c script/Deploy.s.sol Deploy --sig "run()" --broadcast -vvvv ./script/Deploy.s.sol
 
 build-test:
     forge build --contracts src/ProudCamel.sol

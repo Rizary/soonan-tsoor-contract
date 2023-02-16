@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
 import {ERC721A, ERC721A__IERC721Receiver} from "@erc721A/contracts/ERC721A.sol";
 import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
-//import {IERC721Receiver} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-//import {IERC721Metadata} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -13,7 +11,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
+contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
     using Address for address;
 
     // Token name
@@ -22,11 +20,8 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
     // Token symbol
     string private constant _symbol = "SNSR";
 
-    // total number of NFTs Minted
-    uint256 private _totalSupply;
-
     // max supply cap
-    uint256 public constant MAX_SUPPLY = 5_000;
+    uint256 public constant MAX_SUPPLY = 5_100;
 
     // Mapping from token ID to owner address
     mapping(uint256 => address) private _owners;
@@ -65,13 +60,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
     // Swap Path
     address[] private path;
 
-    // Breakpoints for minting in phases
-    uint256 private constant breakpoint0 = 2500;
-    uint256 private constant breakpoint1 = 5000;
-    uint256 private constant breakpoint2 = 7500;
-
-    // Initialize Router and Walrus
-    constructor(address usdc) {
+    constructor(address usdc) ERC721A(_name, _symbol) {
         mintToken = IERC20(usdc);
     }
 
@@ -102,6 +91,10 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
             IERC20(token_).balanceOf(address(this))
         );
     }
+    
+    function _startTokenId() internal view virtual override returns (uint256) {
+        return 1;
+    }
 
     function setCost(uint256 newCost) external onlyOwner {
         cost = newCost;
@@ -113,13 +106,6 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
 
     function setURIExtention(string calldata newExtention) external onlyOwner {
         ending = newExtention;
-    }
-
-    function ownerMint(address to, uint256 qty) external onlyOwner {
-        // mint NFTs
-        for (uint256 i = 0; i < qty; i++) {
-            _safeMint(to, _totalSupply);
-        }
     }
 
     function setAutoDistribute(bool auto_) external onlyOwner {
@@ -151,14 +137,20 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
         _transferIn(cost * numberOfMints);
 
         // mint NFTs
-        for (uint256 i = 0; i < numberOfMints; i++) {
-            _safeMint(msg.sender, _totalSupply);
-        }
+
+        _safeMint(msg.sender, numberOfMints);
+
 
         // divvy up funds
         if (autoDistribute) {
             _distribute();
         }
+    }
+    
+    function ownerMint(address to, uint256 quantity) external onlyOwner {
+        // mint NFTs
+       require(owner() == to, "address is not the owner");
+        _safeMint(to, quantity);
     }
 
     receive() external payable {}
@@ -203,40 +195,9 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
         _transfer(from, to, tokenId);
     }
 
-    /**
-     * @dev See {IERC721-safeTransferFrom}.
-     */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) payable public override {
-        safeTransferFrom(from, to, tokenId, "");
-    }
-
-    /**
-     * @dev See {IERC721-safeTransferFrom}.
-     */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory _data
-    ) payable public override {
-        require(
-            _isApprovedOrOwner(_msgSender(), tokenId),
-            "caller not owner nor approved"
-        );
-        _safeTransfer(from, to, tokenId, _data);
-    }
-
     ////////////////////////////////////////////////
     ///////////     READ FUNCTIONS       ///////////
     ////////////////////////////////////////////////
-
-    function totalSupply() external view returns (uint256) {
-        return _totalSupply;
-    }
 
     function getIDsByOwner(address owner)
         external
@@ -246,7 +207,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
         uint256[] memory ids = new uint256[](balanceOf(owner));
         if (balanceOf(owner) == 0) return ids;
         uint256 count = 0;
-        for (uint256 i = 0; i < _totalSupply; i++) {
+        for (uint256 i = 0; i < super.totalSupply(); i++) {
             if (_owners[i] == owner) {
                 ids[count] = i;
                 count++;
@@ -261,7 +222,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC165, IERC721A)
+        override(ERC165, ERC721A)
         returns (bool)
     {
         return
@@ -280,10 +241,8 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
     /**
      * @dev See {IERC721-ownerOf}.
      */
-    function ownerOf(uint256 tokenId) public view override returns (address) {
-        address pcowner = _owners[tokenId];
-        require(pcowner != address(0), "query for nonexistent token");
-        return pcowner;
+    function ownerOf(uint256 tokenId) public view virtual override returns (address) {
+        return super.ownerOf(tokenId);
     }
 
     /**
@@ -377,7 +336,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
      *
      * Tokens start existing when they are minted
      */
-    function _exists(uint256 tokenId) internal view returns (bool) {
+    function _exists(uint256 tokenId) internal view override returns (bool) {
         return _owners[tokenId] != address(0);
     }
 
@@ -408,12 +367,8 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
      * @dev Same as {xref-ERC721-_safeMint-address-uint256-}[`_safeMint`], with an additional `data` parameter which is
      * forwarded in {IERC721Receiver-onERC721Received} to contract recipients.
      */
-    function _safeMint(address to, uint256 tokenId) internal {
-        _mint(to, tokenId);
-        require(
-            _checkOnERC721Received(address(0), to, tokenId, ""),
-            "ERC721: transfer to non ERC721Receiver implementer"
-        );
+    function _safeMint(address to, uint256 quantity) internal override {
+        super._mint(to, quantity);
     }
 
     /**
@@ -428,23 +383,24 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
      *
      * Emits a {Transfer} event.
      */
-    function _mint(address to, uint256 tokenId) internal {
-        require(!_exists(tokenId), "ERC721: token already minted");
-        require(_totalSupply < MAX_SUPPLY, "All NFTs Have Been Minted");
+    function _mint(address to, uint256 quantity) internal override {
+        require(super.totalSupply() < MAX_SUPPLY, "All NFTs Have Been Minted");
 
-        _balances[to] += 1;
-        _owners[tokenId] = to;
-        _totalSupply++;
+        _balances[to] += quantity;
 
-        if (
-            _totalSupply == breakpoint0 ||
-            _totalSupply == breakpoint1 ||
-            _totalSupply == breakpoint2
-        ) {
-            mintingEnabled = false;
-        }
-
-        emit Transfer(address(0), to, tokenId);
+        super._mint(to, quantity);
+        emit Transfer(address(0), to, quantity);
+    }
+    
+    function _afterTokenTransfers(
+        address /*from*/, 
+        address to, 
+        uint256 startTokenId, 
+        uint256 quantity
+    ) internal virtual override {
+        for (uint256 i = startTokenId; i <= quantity; i++) {
+            _owners[i] = to;
+        }    
     }
 
     function _transferIn(uint256 amount) internal {
@@ -493,14 +449,9 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
     function _safeTransfer(
         address from,
         address to,
-        uint256 tokenId,
-        bytes memory _data
+        uint256 tokenId
     ) internal {
         _transfer(from, to, tokenId);
-        require(
-            _checkOnERC721Received(from, to, tokenId, _data),
-            "ERC721: non ERC721Receiver implementer"
-        );
     }
 
     /**
@@ -522,6 +473,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
         require(ownerOf(tokenId) == from, "Incorrect owner");
         require(to != address(0), "zero address");
         require(balanceOf(from) > 0, "Zero Balance");
+        require(tokenId <= 100, "this NFT are fractionalized and cannot be transferred");
 
         // Clear approvals from the previous owner
         _approve(address(0), tokenId);
@@ -540,7 +492,7 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
      *
      * Emits a {Approval} event.
      */
-    function _approve(address to, uint256 tokenId) internal {
+    function _approve(address to, uint256 tokenId) internal override {
         _tokenApprovals[tokenId] = to;
         emit Approval(ownerOf(tokenId), to, tokenId);
     }
@@ -562,45 +514,5 @@ contract SoonanTsoorNFT is Context, ERC165, IERC721A, Ownable {
 
     function onReceivedRetval() public pure returns (bytes4) {
         return ERC721A__IERC721Receiver.onERC721Received.selector;
-    }
-
-    /**
-     * @dev Internal function to invoke {IERC721Receiver-onERC721Received} on a target address.
-     * The call is not executed if the target address is not a contract.
-     *
-     * @param from address representing the previous owner of the given token ID
-     * @param to target address that will receive the tokens
-     * @param tokenId uint256 ID of the token to be transferred
-     * @param _data bytes optional data to send along with the call
-     * @return bool whether the call correctly returned the expected magic value
-     */
-    function _checkOnERC721Received(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory _data
-    ) private returns (bool) {
-        if (to.isContract()) {
-            try
-                ERC721A__IERC721Receiver(to).onERC721Received(
-                    _msgSender(),
-                    from,
-                    tokenId,
-                    _data
-                )
-            returns (bytes4 retval) {
-                return retval == ERC721A__IERC721Receiver.onERC721Received.selector;
-            } catch (bytes memory reason) {
-                if (reason.length == 0) {
-                    revert("ERC721: non ERC721Receiver implementer");
-                } else {
-                    assembly {
-                        revert(add(32, reason), mload(reason))
-                    }
-                }
-            }
-        } else {
-            return true;
-        }
     }
 }

@@ -2,51 +2,149 @@
 
 pragma solidity ^0.8.15;
 
-import {ERC721A, ERC721A__IERC721Receiver} from "@erc721A/contracts/ERC721A.sol";
 import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {FractionToken} from "./FractionToken.sol";
 
 contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IERC20 public wsnsr;
+    FractionToken public wsnsr;
+    
+    // Mint Token
+    IERC20 public immutable mintToken;
 
     address public soonanTsoorNFT;
 
     uint256 public constant FRACTION_SIZE = 1000;
+    
+    // whether or not mints should auto distribute
+    bool public autoDistribute = true;
+    
+    // cost for minting fraction
+    uint256 public cost = 85 * 10**6;
 
     uint256 public totalFractions;
+    
+    // Rewards Wallet
+    address public rewardWallet = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
 
-    mapping(uint256 => uint256) public availableFractions;
+    // Project Wallet
+    address public projectWallet = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
+
+    struct FractOwnership {
+        mapping(uint256 => uint256) fractOwned;
+    }
+    mapping(uint256 => uint256) private _availableFractions;
+    mapping(address => FractOwnership) private _fractionOwnership;
 
     event FractionBought(address indexed buyer, uint256 tokenId, uint256 amount);
 
-    constructor(address _wsnsr, address _soonanTsoorNFT) {
-        wsnsr = IERC20(_wsnsr);
+    constructor(address _wsnsr, address _soonanTsoorNFT, address usdc) {
+        wsnsr = FractionToken(_wsnsr);
         soonanTsoorNFT = _soonanTsoorNFT;
+        mintToken = IERC20(usdc);
 
         // mint all ERC20 tokens
         totalFractions = 5000 * FRACTION_SIZE;
-        wsnsr.mint(address(this), totalFractions);
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
         require(_amount > 0, "FractionalizedNFT: invalid amount");
         require(_tokenId >= 100 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
-        require(_amount <= availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
+        require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
 
-        // transfer WSNSR tokens from buyer to contract
-        wsnsr.safeTransferFrom(msg.sender, address(this), _amount);
+        _transferIn(cost * _amount);
+        
+        _transferOut(_amount);
 
         // transfer NFT fraction from contract to buyer
-        availableFractions[_tokenId] -= _amount;
-        IERC721A(soonanTsoorNFT).safeTransferFrom(address(this), msg.sender, _tokenId);
-
+        _availableFractions[_tokenId] -= _amount;
+        
+        _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
+        
+        // divvy up funds
+        if (autoDistribute) {
+            _distribute();
+        }
+        
         emit FractionBought(msg.sender, _tokenId, _amount);
+    }
+
+    function _transferIn(uint256 amount) internal {
+        require(
+            mintToken.allowance(msg.sender, address(this)) >= amount,
+            "Insufficient Allowance"
+        );
+        require(
+            mintToken.transferFrom(msg.sender, address(this), amount),
+            "Failure Transfer From"
+        );
+    }
+
+    function _transferOut(uint256 amount) internal {
+        require(
+            wsnsr.allowance(address(this), msg.sender) >= amount,
+            "Insufficient Allowance"
+        );
+        require(
+            wsnsr.transferFrom(address(this), msg.sender, amount),
+            "Failure Transfer From"
+        );
+    }
+    
+    function setCost(uint256 newCost) external onlyOwner {
+        cost = newCost;
+    }
+    
+    function distribute() external onlyOwner {
+        _distribute();
+    }
+    
+    function _distribute() internal {
+        // send half of the usdc to web 2.0 business wallet
+        uint256 forWeb2 = mintToken.balanceOf(address(this)) / 2;
+        if (forWeb2 > 0) {
+            mintToken.transfer(rewardWallet, forWeb2);
+        }
+
+        // send the rest to web 3.0 business wallet
+        uint256 forWeb3 = mintToken.balanceOf(address(this));
+        if (forWeb3 > 0) {
+            mintToken.transfer(projectWallet, forWeb3);
+        }
+    }
+    
+    function setAutoDistribute(bool auto_) external onlyOwner {
+        autoDistribute = auto_;
+    }
+
+    function isRightFullOwner(address owner, uint256 tokenId)
+        external
+        view
+        returns (bool)
+    {
+        return _fractionOwnership[owner].fractOwned[tokenId] == 1000;
+    }
+    
+    function fractByTokenId(address owner, uint256 tokenId)
+        external
+        view
+        returns (uint256)
+    {
+        return _fractionOwnership[owner].fractOwned[tokenId];
+    }
+    
+    function availableFracByTokenId(uint256 tokenId)
+        external
+        view
+        returns (uint256)
+    {
+        return _availableFractions[tokenId];
     }
 
     function fractionalize() external onlyOwner {
@@ -54,7 +152,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
 
         for (uint256 i = 101; i <= 5100; i++) {
             IERC721A(soonanTsoorNFT).safeTransferFrom(msg.sender, address(this), i);
-            availableFractions[i] = FRACTION_SIZE;
+            _availableFractions[i] = FRACTION_SIZE;
         }
     }
 }
