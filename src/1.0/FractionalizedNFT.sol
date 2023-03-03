@@ -41,6 +41,8 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     }
     mapping(uint256 => uint256) private _availableFractions;
     mapping(address => FractOwnership) private _fractionOwnership;
+    mapping(address => uint256[]) private _tokenIdShared;
+    mapping(address => uint256) private _totalFractOwned;
 
     event FractionBought(address indexed buyer, uint256 tokenId, uint256 amount);
 
@@ -65,7 +67,12 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         // transfer NFT fraction from contract to buyer
         _availableFractions[_tokenId] -= _amount;
         
+        if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
+            _tokenIdShared[msg.sender].push(_tokenId);
+        }
         _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
+        _totalFractOwned[msg.sender] += _amount;
+        
         
         // divvy up funds
         if (autoDistribute) {
@@ -73,6 +80,24 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         }
         
         emit FractionBought(msg.sender, _tokenId, _amount);
+    }
+    
+    function sendFraction(address to, uint256 _tokenId, uint256 _amount) external onlyOwner {
+        require(_amount > 0, "FractionalizedNFT: invalid amount");
+        require(_tokenId >= 100 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
+        require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
+
+        _transferOutOwner(to, _amount);
+        // transfer NFT fraction from contract to buyer
+        _availableFractions[_tokenId] -= _amount;
+        
+        if (_fractionOwnership[to].fractOwned[_tokenId] < 1) {
+            _tokenIdShared[to].push(_tokenId);
+        }
+        _fractionOwnership[to].fractOwned[_tokenId] += _amount;
+        _totalFractOwned[to] += _amount;
+        
+        emit FractionBought(to, _tokenId, _amount);
     }
 
     function _transferIn(uint256 amount) internal {
@@ -93,6 +118,13 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         );
         require(
             wsnsr.transferFrom(address(this), msg.sender, amount),
+            "Failure Transfer From"
+        );
+    }
+    
+    function _transferOutOwner(address to, uint256 amount) internal onlyOwner {
+        require(
+            wsnsr.transferFrom(address(this), to, amount),
             "Failure Transfer From"
         );
     }
@@ -137,6 +169,22 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         returns (uint256)
     {
         return _fractionOwnership[owner].fractOwned[tokenId];
+    }
+    
+    function totalFractByAddress(address owner)
+        external
+        view
+        returns (uint256)
+    {
+        return _totalFractOwned[owner];
+    }
+    
+    function tokenIdSharedByAddress(address owner)
+        external
+        view
+        returns (uint256[] memory)
+    {
+        return _tokenIdShared[owner];
     }
     
     function availableFracByTokenId(uint256 tokenId)

@@ -33,7 +33,7 @@ contract Deploy is Script {
         fractionalizedNFT = address(fractionalizedNFTContract);
 
         // deploy StakingFractionNFT contract
-        StakingFractionNFT stakingFractionNFTContract = new StakingFractionNFT();
+        StakingFractionNFT stakingFractionNFTContract = new StakingFractionNFT(fractionToken);
         stakingFractionNFT = address(stakingFractionNFTContract);
         
         vm.stopBroadcast();

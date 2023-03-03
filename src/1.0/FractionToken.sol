@@ -1,7 +1,6 @@
-
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.15;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -17,7 +16,7 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
     bool private _enableDirectTransfer;
     uint256 private _pauseTime;
 
-    constructor() ERC20("WSNSR", "WSNSR") {
+    constructor() ERC20("Fraction Token", "WSNSR") {
         _enableDirectTransfer = true;
         _mint(address(this), SUPPLY_CAP);
     }
