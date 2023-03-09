@@ -83,4 +83,8 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
         _paused = false;
         _pauseTime = 0;
     }
+    
+    function getFractionStatus() external view returns (bool) {
+        return _paused;
+    }
 }

@@ -11,29 +11,23 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
+contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     using Address for address;
 
     // Token name
-    string private constant _name = "SoonanTsoorNFT";
+    string private constant _name = "SoonanTsoorStudio";
 
     // Token symbol
-    string private constant _symbol = "SNSR";
+    string private constant _symbol = "STS";
 
     // max supply cap
-    uint256 public constant MAX_SUPPLY = 5_100;
+    uint256 public constant MAX_SUPPLY = 5_000;
 
     // Mapping from token ID to owner address
     mapping(uint256 => address) private _owners;
 
     // Mapping owner address to token count
     mapping(address => uint256) private _balances;
-
-    // Mapping from token ID to approved address
-    mapping(uint256 => address) private _tokenApprovals;
-
-    // Mapping from owner to operator approvals
-    mapping(address => mapping(address => bool)) private _operatorApprovals;
 
     // cost for minting NFT
     uint256 public cost = 85 * 10**6;
@@ -93,7 +87,7 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
     }
     
     function _startTokenId() internal view virtual override returns (uint256) {
-        return 1;
+        return 101;
     }
 
     function setCost(uint256 newCost) external onlyOwner {
@@ -125,60 +119,13 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
     ////////////////////////////////////////////////
     ///////////     PUBLIC FUNCTIONS     ///////////
     ////////////////////////////////////////////////
-
-    /**
-     * Mints `numberOfMints` NFTs To Caller
-     */
-    function mint(uint256 numberOfMints) external {
-        require(mintingEnabled, "Minting Not Enabled");
-        require(numberOfMints > 0, "Invalid Input");
-
-        // transfer in cost
-        _transferIn(cost * numberOfMints);
-
-        // mint NFTs
-
-        _safeMint(msg.sender, numberOfMints);
-
-
-        // divvy up funds
-        if (autoDistribute) {
-            _distribute();
-        }
-    }
     
     function ownerMint(address to, uint256 quantity) external onlyOwner {
         // mint NFTs
-       require(owner() == to, "address is not the owner");
         _safeMint(to, quantity);
     }
 
     receive() external payable {}
-
-    /**
-     * @dev See {IERC721-approve}.
-     */
-    function approve(address to, uint256 tokenId) payable public override {
-        address pcowner = ownerOf(tokenId);
-        require(to != pcowner, "ERC721: approval to current owner");
-
-        require(
-            _msgSender() == pcowner || isApprovedForAll(pcowner, _msgSender()),
-            "ERC721: not approved or owner"
-        );
-
-        _approve(to, tokenId);
-    }
-
-    /**
-     * @dev See {IERC721-setApprovalForAll}.
-     */
-    function setApprovalForAll(address _operator, bool approved)
-        public
-        override
-    {
-        _setApprovalForAll(_msgSender(), _operator, approved);
-    }
 
     /**
      * @dev See {IERC721-transferFrom}.
@@ -188,11 +135,14 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
         address to,
         uint256 tokenId
     ) payable public override {
-        require(
-            _isApprovedOrOwner(_msgSender(), tokenId),
-            "caller not owner nor approved"
-        );
-        _transfer(from, to, tokenId);
+        require(balanceOf(from) > 0, "Zero Balance");
+        require(from == owner() || from == address(this), "Cannot send token");
+
+        // Allocate balances
+        _balances[from] -= 1;
+        _balances[to] += 1;
+        _owners[tokenId] = to;
+        super.transferFrom(from, to, tokenId);
     }
 
     ////////////////////////////////////////////////
@@ -304,43 +254,6 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
     }
 
     /**
-     * @dev See {IERC721-getApproved}.
-     */
-    function getApproved(uint256 tokenId)
-        public
-        view
-        override
-        returns (address)
-    {
-        require(_exists(tokenId), "ERC721: query for nonexistent token");
-
-        return _tokenApprovals[tokenId];
-    }
-
-    /**
-     * @dev See {IERC721-isApprovedForAll}.
-     */
-    function isApprovedForAll(address pcowner, address _operator)
-        public
-        view
-        override
-        returns (bool)
-    {
-        return _operatorApprovals[pcowner][_operator];
-    }
-
-    /**
-     * @dev Returns whether `tokenId` exists.
-     *
-     * Tokens can be managed by their owner or approved accounts via {approve} or {setApprovalForAll}.
-     *
-     * Tokens start existing when they are minted
-     */
-    function _exists(uint256 tokenId) internal view override returns (bool) {
-        return _owners[tokenId] != address(0);
-    }
-
-    /**
      * @dev Returns whether `spender` is allowed to manage `tokenId`.
      *
      * Requirements:
@@ -368,7 +281,7 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
      * forwarded in {IERC721Receiver-onERC721Received} to contract recipients.
      */
     function _safeMint(address to, uint256 quantity) internal override {
-        super._mint(to, quantity);
+        _mint(to, quantity);
     }
 
     /**
@@ -395,21 +308,21 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
     function _afterTokenTransfers(
         address /*from*/, 
         address to, 
-        uint256 startTokenId, 
+        uint256 _currentTokenId, 
         uint256 quantity
     ) internal virtual override {
-        for (uint256 i = startTokenId; i <= quantity; i++) {
+        for (uint256 i = _currentTokenId; i <= quantity; i++) {
             _owners[i] = to;
         }    
     }
 
-    function _transferIn(uint256 amount) internal {
+    function _transferIn(uint256 _amount) internal {
         require(
-            mintToken.allowance(msg.sender, address(this)) >= amount,
+            mintToken.allowance(msg.sender, address(this)) >= _amount,
             "Insufficient Allowance"
         );
         require(
-            mintToken.transferFrom(msg.sender, address(this), amount),
+            mintToken.transferFrom(msg.sender, address(this), _amount),
             "Failure Transfer From"
         );
     }
@@ -426,90 +339,6 @@ contract SoonanTsoorNFT is Context, ERC165, ERC721A,  Ownable {
         if (forWeb3 > 0) {
             mintToken.transfer(teamWalletW3, forWeb3);
         }
-    }
-
-    /**
-     * @dev Safely transfers `tokenId` token from `from` to `to`, checking first that contract recipients
-     * are aware of the ERC721 protocol to prevent tokens from being forever locked.
-     *
-     * `_data` is additional data, it has no specified format and it is sent in call to `to`.
-     *
-     * This internal function is equivalent to {safeTransferFrom}, and can be used to e.g.
-     * implement alternative mechanisms to perform token transfer, such as signature-based.
-     *
-     * Requirements:
-     *
-     * - `from` cannot be the zero address.
-     * - `to` cannot be the zero address.
-     * - `tokenId` token must exist and be owned by `from`.
-     * - If `to` refers to a smart contract, it must implement {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _safeTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal {
-        _transfer(from, to, tokenId);
-    }
-
-    /**
-     * @dev Transfers `tokenId` from `from` to `to`.
-     *  As opposed to {transferFrom}, this imposes no restrictions on msg.sender.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - `tokenId` token must be owned by `from`.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _transfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal {
-        require(ownerOf(tokenId) == from, "Incorrect owner");
-        require(to != address(0), "zero address");
-        require(balanceOf(from) > 0, "Zero Balance");
-        require(tokenId <= 100, "this NFT are fractionalized and cannot be transferred");
-
-        // Clear approvals from the previous owner
-        _approve(address(0), tokenId);
-
-        // Allocate balances
-        _balances[from] -= 1;
-        _balances[to] += 1;
-        _owners[tokenId] = to;
-
-        // emit transfer
-        emit Transfer(from, to, tokenId);
-    }
-
-    /**
-     * @dev Approve `to` to operate on `tokenId`
-     *
-     * Emits a {Approval} event.
-     */
-    function _approve(address to, uint256 tokenId) internal override {
-        _tokenApprovals[tokenId] = to;
-        emit Approval(ownerOf(tokenId), to, tokenId);
-    }
-
-    /**
-     * @dev Approve `operator` to operate on all of `owner` tokens
-     *
-     * Emits a {ApprovalForAll} event.
-     */
-    function _setApprovalForAll(
-        address pcowner,
-        address _operator,
-        bool approved
-    ) internal {
-        require(pcowner != _operator, "ERC721: approve to caller");
-        _operatorApprovals[pcowner][_operator] = approved;
-        emit ApprovalForAll(pcowner, _operator, approved);
     }
 
     function onReceivedRetval() public pure returns (bytes4) {

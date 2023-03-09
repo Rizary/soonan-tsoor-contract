@@ -9,16 +9,17 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {FractionToken} from "./FractionToken.sol";
+import {SoonanTsoorStudio} from "./SoonanTsoorStudio.sol";
 
 contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     FractionToken public wsnsr;
     
+    SoonanTsoorStudio public soonanTsoorStudio;
+    
     // Mint Token
     IERC20 public immutable mintToken;
-
-    address public soonanTsoorNFT;
 
     uint256 public constant FRACTION_SIZE = 1000;
     
@@ -29,12 +30,16 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     uint256 public cost = 85 * 10**6;
 
     uint256 public totalFractions;
+    uint256 public totalFractionSold;
     
     // Rewards Wallet
     address public rewardWallet = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
 
     // Project Wallet
     address public projectWallet = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
+    
+    // Dev Wallet
+    address public devWallet = 0x5FE49cb77be19D1970dd9b0971086A8fFFAe66E4;
 
     struct FractOwnership {
         mapping(uint256 => uint256) fractOwned;
@@ -43,13 +48,21 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     mapping(address => FractOwnership) private _fractionOwnership;
     mapping(address => uint256[]) private _tokenIdShared;
     mapping(address => uint256) private _totalFractOwned;
-
+    
+    // Breakpoints for developer
+    uint256 private constant breakpoint0 = 2_000_000;
+    uint256 private constant breakpoint1 = 4_000_000;
+    uint256 private constant breakpoint2 = 5_000_000;
+    
     event FractionBought(address indexed buyer, uint256 tokenId, uint256 amount);
 
-    constructor(address _wsnsr, address _soonanTsoorNFT, address usdc) {
+    constructor(address _wsnsr, address payable _soonanTsoorStudio, address usdc) {
         wsnsr = FractionToken(_wsnsr);
-        soonanTsoorNFT = _soonanTsoorNFT;
+        soonanTsoorStudio = SoonanTsoorStudio(_soonanTsoorStudio);
         mintToken = IERC20(usdc);
+        _tokenIdShared[devWallet].push(101);
+        _tokenIdShared[devWallet].push(102);
+        _tokenIdShared[devWallet].push(103);
 
         // mint all ERC20 tokens
         totalFractions = 5000 * FRACTION_SIZE;
@@ -57,7 +70,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
         require(_amount > 0, "FractionalizedNFT: invalid amount");
-        require(_tokenId >= 100 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
+        require(_tokenId >= 103 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
         require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
 
         _transferIn(cost * _amount);
@@ -67,12 +80,73 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         // transfer NFT fraction from contract to buyer
         _availableFractions[_tokenId] -= _amount;
         
+        if (_tokenId == 103) {
+            require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
+        }
+        
         if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
             _tokenIdShared[msg.sender].push(_tokenId);
         }
         _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
         _totalFractOwned[msg.sender] += _amount;
         
+        totalFractionSold += _amount;
+        if (totalFractionSold >= breakpoint2) {
+            totalFractionSold += 500;
+            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _totalFractOwned[devWallet] += 500;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        }
+        
+        // divide up funds
+        if (autoDistribute) {
+            _distribute();
+        }
+        
+        emit FractionBought(msg.sender, _tokenId, _amount);
+    }
+    
+    function redeemFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
+        require(_amount > 0, "FractionalizedNFT: invalid amount");
+        require(_tokenId >= 103 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
+        require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
+        
+        _transferOut(_amount);
+
+        // transfer NFT fraction from contract to buyer
+        _availableFractions[_tokenId] -= _amount;
+        
+        if (_tokenId == 103) {
+            require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
+        }
+        
+        if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
+            _tokenIdShared[msg.sender].push(_tokenId);
+        }
+        _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
+        _totalFractOwned[msg.sender] += _amount;
+        
+        totalFractionSold += _amount;
+        if (totalFractionSold >= breakpoint2) {
+            totalFractionSold += 500;
+            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _totalFractOwned[devWallet] += 500;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        }
         
         // divvy up funds
         if (autoDistribute) {
@@ -83,9 +157,13 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     }
     
     function sendFraction(address to, uint256 _tokenId, uint256 _amount) external onlyOwner {
-        require(_amount > 0, "FractionalizedNFT: invalid amount");
-        require(_tokenId >= 100 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
+        require(_amount < 0, "FractionalizedNFT: invalid amount");
+        require(_tokenId >= 103 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
         require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
+        
+        if (_tokenId == 103) {
+            require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
+        }
 
         _transferOutOwner(to, _amount);
         // transfer NFT fraction from contract to buyer
@@ -96,6 +174,21 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         }
         _fractionOwnership[to].fractOwned[_tokenId] += _amount;
         _totalFractOwned[to] += _amount;
+        
+        totalFractionSold += _amount;
+        if (totalFractionSold >= breakpoint2) {
+            totalFractionSold += 500;
+            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _totalFractOwned[devWallet] += 500;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+            totalFractionSold += 1000;
+            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _totalFractOwned[devWallet] += 1000;
+        }
         
         emit FractionBought(to, _tokenId, _amount);
     }
@@ -195,12 +288,9 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         return _availableFractions[tokenId];
     }
 
-    function fractionalize() external onlyOwner {
-        require(IERC721A(soonanTsoorNFT).balanceOf(address(this)) == 5000, "FractionalizedNFT: insufficient SoonanTsoorNFT tokens");
-
-        for (uint256 i = 101; i <= 5100; i++) {
-            IERC721A(soonanTsoorNFT).safeTransferFrom(msg.sender, address(this), i);
-            _availableFractions[i] = FRACTION_SIZE;
-        }
+    function fractionalize(uint256 _tokenid) external onlyOwner {
+        require(soonanTsoorStudio.balanceOf(address(this)) <= 5100, "FractionalizedNFT: All NFT has been fractionalized");
+        soonanTsoorStudio.transferFrom(msg.sender, address(this), _tokenid);
+        _availableFractions[_tokenid] = FRACTION_SIZE;
     }
 }
