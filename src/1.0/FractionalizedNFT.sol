@@ -75,14 +75,13 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
 
         _transferIn(cost * _amount);
         
-        _transferOut(_amount);
-
-        // transfer NFT fraction from contract to buyer
-        _availableFractions[_tokenId] -= _amount;
-        
         if (_tokenId == 103) {
             require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
         }
+        
+        // transfer NFT fraction from contract to buyer
+        _transferOut(_amount);
+        _availableFractions[_tokenId] -= _amount;
         
         if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
             _tokenIdShared[msg.sender].push(_tokenId);
@@ -205,10 +204,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     }
 
     function _transferOut(uint256 amount) internal {
-        require(
-            wsnsr.allowance(address(this), msg.sender) >= amount,
-            "FractNFT: Insufficient TransferOut Allowance"
-        );
+
         require(
             wsnsr.transferFrom(address(this), msg.sender, amount),
             "FractNFT: Failure Transfer From"
