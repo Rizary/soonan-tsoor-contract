@@ -33,7 +33,7 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     uint256 public cost = 85 * 10**6;
 
     // whether or not mints should auto distribute
-    bool public autoDistribute = true;
+    bool public autoDistribute = false;
 
     // base URI
     string private baseURI = "url";
@@ -91,7 +91,7 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     }
 
     function setCost(uint256 newCost) external onlyOwner {
-        cost = newCost;
+        cost = newCost * 10**6;
     }
 
     function setBaseURI(string calldata newURI) external onlyOwner {
@@ -155,9 +155,10 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
         returns (uint256[] memory)
     {
         uint256[] memory ids = new uint256[](balanceOf(owner));
+        uint256 totalTokenId = super.totalSupply() + 100;
         if (balanceOf(owner) == 0) return ids;
         uint256 count = 0;
-        for (uint256 i = 0; i < super.totalSupply(); i++) {
+        for (uint256 i = 101; i <= totalTokenId; i++) {
             if (_owners[i] == owner) {
                 ids[count] = i;
                 count++;
@@ -281,7 +282,7 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
      * forwarded in {IERC721Receiver-onERC721Received} to contract recipients.
      */
     function _safeMint(address to, uint256 quantity) internal override {
-        _mint(to, quantity);
+        _mintStudio(to, quantity);
     }
 
     /**
@@ -296,7 +297,7 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
      *
      * Emits a {Transfer} event.
      */
-    function _mint(address to, uint256 quantity) internal override {
+    function _mintStudio(address to, uint256 quantity) internal {
         require(super.totalSupply() < MAX_SUPPLY, "All NFTs Have Been Minted");
 
         _balances[to] += quantity;
@@ -311,19 +312,20 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
         uint256 _currentTokenId, 
         uint256 quantity
     ) internal virtual override {
-        for (uint256 i = _currentTokenId; i <= quantity; i++) {
-            _owners[i] = to;
-        }    
+        for (uint256 i = 1; i <= quantity; i++) {
+            _owners[_currentTokenId] = to;
+            _currentTokenId++;
+        } 
     }
 
     function _transferIn(uint256 _amount) internal {
         require(
             mintToken.allowance(msg.sender, address(this)) >= _amount,
-            "Insufficient Allowance"
+            "Studio: Insufficient Allowance"
         );
         require(
             mintToken.transferFrom(msg.sender, address(this), _amount),
-            "Failure Transfer From"
+            "Studio: Failure Transfer From"
         );
     }
 

@@ -16,7 +16,7 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
     bool private _enableDirectTransfer;
     uint256 private _pauseTime;
 
-    constructor() ERC20("Fraction Token", "WSNSR") {
+    constructor() ERC20("Fraction Token", "FSTS") {
         _enableDirectTransfer = true;
         _mint(address(this), SUPPLY_CAP);
     }
@@ -68,7 +68,7 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
         _mint(_to, _amount);
     }
 
-    function burn(uint256 _amount) external nonReentrant {
+    function burn(uint256 _amount) external nonReentrant onlyOwner{
         require(!_paused, "FractionToken: contract is paused");
 
         _burn(msg.sender, _amount);

@@ -24,7 +24,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     uint256 public constant FRACTION_SIZE = 1000;
     
     // whether or not mints should auto distribute
-    bool public autoDistribute = true;
+    bool public autoDistribute = false;
     
     // cost for minting fraction
     uint256 public cost = 85 * 10**6;
@@ -196,22 +196,22 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     function _transferIn(uint256 amount) internal {
         require(
             mintToken.allowance(msg.sender, address(this)) >= amount,
-            "Insufficient Allowance"
+            "FractNFT: Insufficient TransferIn Allowance"
         );
         require(
             mintToken.transferFrom(msg.sender, address(this), amount),
-            "Failure Transfer From"
+            "FractNFT: Failure Transfer From"
         );
     }
 
     function _transferOut(uint256 amount) internal {
         require(
             wsnsr.allowance(address(this), msg.sender) >= amount,
-            "Insufficient Allowance"
+            "FractNFT: Insufficient TransferOut Allowance"
         );
         require(
             wsnsr.transferFrom(address(this), msg.sender, amount),
-            "Failure Transfer From"
+            "FractNFT: Failure Transfer From"
         );
     }
     
@@ -223,11 +223,24 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     }
     
     function setCost(uint256 newCost) external onlyOwner {
-        cost = newCost;
+        cost = newCost * 10**6;
     }
     
+    function withdraw() external onlyOwner {
+        (bool s, ) = payable(msg.sender).call{value: address(this).balance}("");
+        require(s);
+    }
+
     function distribute() external onlyOwner {
         _distribute();
+    }
+
+    function withdrawToken(address token_) external onlyOwner {
+        require(token_ != address(0), "Zero Address");
+        IERC20(token_).transfer(
+            msg.sender,
+            IERC20(token_).balanceOf(address(this))
+        );
     }
     
     function _distribute() internal {
@@ -288,9 +301,11 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         return _availableFractions[tokenId];
     }
 
-    function fractionalize(uint256 _tokenid) external onlyOwner {
+    function fractionalize(uint256[] memory _tokenIds) external onlyOwner {
         require(soonanTsoorStudio.balanceOf(address(this)) <= 5100, "FractionalizedNFT: All NFT has been fractionalized");
-        soonanTsoorStudio.transferFrom(msg.sender, address(this), _tokenid);
-        _availableFractions[_tokenid] = FRACTION_SIZE;
+        for (uint i = 0; i < _tokenIds.length; i++) {
+            soonanTsoorStudio.transferFrom(msg.sender, address(this), _tokenIds[i]);
+            _availableFractions[_tokenIds[i]] = FRACTION_SIZE;
+        }
     }
 }
