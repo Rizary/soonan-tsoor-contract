@@ -257,36 +257,48 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         autoDistribute = auto_;
     }
 
-    function isRightFullOwner(address owner, uint256 tokenId)
+    function isRightFullOwner(address _owner, uint256 tokenId)
         external
         view
         returns (bool)
     {
-        return _fractionOwnership[owner].fractOwned[tokenId] == 1000;
+        require(msg.sender != address(0), "Zero Address");
+        require(_owner != address(0), "Zero Address");
+        require(msg.sender == _owner || owner() == _owner, "Sender is not the Owner");
+        return _fractionOwnership[_owner].fractOwned[tokenId] == 1000;
     }
     
-    function fractByTokenId(address owner, uint256 tokenId)
+    function fractByTokenId(address _owner, uint256 tokenId)
         external
         view
         returns (uint256)
     {
-        return _fractionOwnership[owner].fractOwned[tokenId];
+        require(msg.sender != address(0), "Zero Address");
+        require(_owner != address(0), "Zero Address");
+        require(msg.sender == _owner, "Sender is not the Owner");
+        return _fractionOwnership[_owner].fractOwned[tokenId];
     }
     
-    function totalFractByAddress(address owner)
+    function totalFractByAddress(address _owner)
         external
         view
         returns (uint256)
     {
-        return _totalFractOwned[owner];
+        require(msg.sender != address(0), "Zero Address");
+        require(_owner != address(0), "Zero Address");
+        require(msg.sender == _owner, "Sender is not the Owner");
+        return _totalFractOwned[_owner];
     }
     
-    function tokenIdSharedByAddress(address owner)
+    function tokenIdSharedByAddress(address _owner)
         external
         view
         returns (uint256[] memory)
     {
-        return _tokenIdShared[owner];
+        require(msg.sender != address(0), "Zero Address");
+        require(_owner != address(0), "Zero Address");
+        require(msg.sender == _owner, "Sender is not the Owner");
+        return _tokenIdShared[_owner];
     }
     
     function availableFracByTokenId(uint256 tokenId)
