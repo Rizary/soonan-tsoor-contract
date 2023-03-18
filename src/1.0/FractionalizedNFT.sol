@@ -5,13 +5,14 @@ pragma solidity ^0.8.15;
 import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC165Storage} from "@openzeppelin/contracts/utils/introspection/ERC165Storage.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {FractionToken} from "./FractionToken.sol";
 import {SoonanTsoorStudio} from "./SoonanTsoorStudio.sol";
 
-contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
+contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     FractionToken public wsnsr;
@@ -27,7 +28,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     bool public autoDistribute = false;
     
     // cost for minting fraction
-    uint256 public cost = 85 * 10**6;
+    uint256 public cost;
 
     uint256 public totalFractions;
     uint256 public totalFractionSold;
@@ -54,6 +55,8 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     uint256 private constant breakpoint1 = 4_000_000;
     uint256 private constant breakpoint2 = 5_000_000;
     
+    address private fractionTokenAddr;
+    
     event FractionBought(address indexed buyer, uint256 tokenId, uint256 amount);
 
     constructor(address _wsnsr, address payable _soonanTsoorStudio, address usdc) {
@@ -63,9 +66,11 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         _tokenIdShared[devWallet].push(101);
         _tokenIdShared[devWallet].push(102);
         _tokenIdShared[devWallet].push(103);
-
+        cost = 85 * 10**6;
+        fractionTokenAddr = _wsnsr;
         // mint all ERC20 tokens
-        totalFractions = 5000 * FRACTION_SIZE;
+        totalFractions = 5000 * FRACTION_SIZE * 10**18;
+        wsnsr.approve(address(this), totalFractions);
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
@@ -206,7 +211,7 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     function _transferOut(uint256 amount) internal {
 
         require(
-            wsnsr.transferFrom(address(this), msg.sender, amount),
+            wsnsr.transferFrom(fractionTokenAddr, msg.sender, amount * 10**18),
             "FractNFT: Failure Transfer From"
         );
     }
@@ -221,22 +226,28 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
     function setCost(uint256 newCost) external onlyOwner {
         cost = newCost * 10**6;
     }
-    
-    function withdraw() external onlyOwner {
-        (bool s, ) = payable(msg.sender).call{value: address(this).balance}("");
-        require(s);
-    }
 
     function distribute() external onlyOwner {
         _distribute();
     }
 
-    function withdrawToken(address token_) external onlyOwner {
-        require(token_ != address(0), "Zero Address");
-        IERC20(token_).transfer(
-            msg.sender,
-            IERC20(token_).balanceOf(address(this))
-        );
+    function withdrawToken() external payable onlyOwner {
+        uint256 balance = mintToken.balanceOf(address(this));
+        
+        require(balance > 0, "Contract has no balance");
+        require(mintToken.transfer(owner(), balance), "Transfer failed");
+    }
+    
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC165Storage)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IERC721A).interfaceId ||
+            interfaceId == type(IERC20).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
     
     function _distribute() internal {
@@ -257,48 +268,40 @@ contract FractionalizedNFT is ERC721Holder, Ownable, ReentrancyGuard {
         autoDistribute = auto_;
     }
 
-    function isRightFullOwner(address _owner, uint256 tokenId)
+    function isRightFullOwner(uint256 tokenId)
         external
         view
         returns (bool)
     {
-        require(msg.sender != address(0), "Zero Address");
-        require(_owner != address(0), "Zero Address");
-        require(msg.sender == _owner || owner() == _owner, "Sender is not the Owner");
-        return _fractionOwnership[_owner].fractOwned[tokenId] == 1000;
+        require(wsnsr.balanceOf(msg.sender) > 0, "IsRightFullOwner: Not Enough Balance");
+        return _fractionOwnership[msg.sender].fractOwned[tokenId] == 1000;
     }
     
-    function fractByTokenId(address _owner, uint256 tokenId)
+    function fractByTokenId(uint256 tokenId)
         external
         view
         returns (uint256)
     {
-        require(msg.sender != address(0), "Zero Address");
-        require(_owner != address(0), "Zero Address");
-        require(msg.sender == _owner, "Sender is not the Owner");
-        return _fractionOwnership[_owner].fractOwned[tokenId];
+        require(wsnsr.balanceOf(msg.sender) > 0, "FractByTokenId: Not Enough Balance");
+        return _fractionOwnership[msg.sender].fractOwned[tokenId];
     }
     
-    function totalFractByAddress(address _owner)
+    function totalFractByAddress()
         external
         view
         returns (uint256)
     {
-        require(msg.sender != address(0), "Zero Address");
-        require(_owner != address(0), "Zero Address");
-        require(msg.sender == _owner, "Sender is not the Owner");
-        return _totalFractOwned[_owner];
+        require(wsnsr.balanceOf(msg.sender) > 0, "TotalFractByAddress: Not Enough Balance");
+        return _totalFractOwned[msg.sender];
     }
     
-    function tokenIdSharedByAddress(address _owner)
+    function tokenIdSharedByAddress()
         external
         view
         returns (uint256[] memory)
     {
-        require(msg.sender != address(0), "Zero Address");
-        require(_owner != address(0), "Zero Address");
-        require(msg.sender == _owner, "Sender is not the Owner");
-        return _tokenIdShared[_owner];
+        require(wsnsr.balanceOf(msg.sender) > 0, "TokenIdSharedByAddress: Not Enough Balance");
+        return _tokenIdShared[msg.sender];
     }
     
     function availableFracByTokenId(uint256 tokenId)

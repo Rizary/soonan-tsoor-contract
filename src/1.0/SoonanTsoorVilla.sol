@@ -4,15 +4,16 @@ pragma solidity ^0.8.15;
 import {ERC721A, ERC721A__IERC721Receiver} from "@erc721A/contracts/ERC721A.sol";
 import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC165Storage} from "@openzeppelin/contracts/utils/introspection/ERC165Storage.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-contract SoonanTsoorVilla is Context, ERC165, ERC721A,  Ownable {
+contract SoonanTsoorVilla is Context, ERC165Storage, ERC721A, Ownable {
     using Address for address;
+    address private owner_;
 
     // Token name
     string private constant _name = "SoonanTsoorVilla";
@@ -55,6 +56,7 @@ contract SoonanTsoorVilla is Context, ERC165, ERC721A,  Ownable {
     address[] private path;
 
     constructor(address usdc) ERC721A(_name, _symbol) {
+        owner_ = msg.sender;
         mintToken = IERC20(usdc);
     }
 
@@ -69,23 +71,17 @@ contract SoonanTsoorVilla is Context, ERC165, ERC721A,  Ownable {
         mintingEnabled = false;
     }
 
-    function withdraw() external onlyOwner {
-        (bool s, ) = payable(msg.sender).call{value: address(this).balance}("");
-        require(s);
+    function withdrawToken() external payable onlyOwner {
+        uint256 balance = mintToken.balanceOf(address(this));
+        
+        require(balance > 0, "Contract has no balance");
+        require(mintToken.transfer(owner(), balance), "Transfer failed");
     }
 
     function distribute() external onlyOwner {
         _distribute();
     }
 
-    function withdrawToken(address token_) external onlyOwner {
-        require(token_ != address(0), "Zero Address");
-        IERC20(token_).transfer(
-            msg.sender,
-            IERC20(token_).balanceOf(address(this))
-        );
-    }
-    
     function _startTokenId() internal view virtual override returns (uint256) {
         return 1;
     }
@@ -169,17 +165,17 @@ contract SoonanTsoorVilla is Context, ERC165, ERC721A,  Ownable {
     ///////////     READ FUNCTIONS       ///////////
     ////////////////////////////////////////////////
 
-    function getIDsByOwner(address owner)
+    function getIDsByOwner(address _owner)
         external
         view
         returns (uint256[] memory)
     {
-        uint256[] memory ids = new uint256[](balanceOf(owner));
-        uint256 totalTokenId = super.totalSupply() + 100;
-        if (balanceOf(owner) == 0) return ids;
+        uint256[] memory ids = new uint256[](balanceOf(_owner));
+        uint256 totalTokenId = super.totalSupply();
+        if (balanceOf(_owner) == 0) return ids;
         uint256 count = 0;
-        for (uint256 i = 101; i <= totalTokenId; i++) {
-            if (_owners[i] == owner) {
+        for (uint256 i = 1; i <= totalTokenId; i++) {
+            if (_owners[i] == _owner) {
                 ids[count] = i;
                 count++;
             }
@@ -193,11 +189,12 @@ contract SoonanTsoorVilla is Context, ERC165, ERC721A,  Ownable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC165, ERC721A)
+        override(ERC165Storage, ERC721A)
         returns (bool)
     {
         return
             interfaceId == type(IERC721A).interfaceId ||
+            interfaceId == type(IERC20).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 

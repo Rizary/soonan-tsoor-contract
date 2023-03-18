@@ -30,17 +30,17 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     mapping(address => uint256) private _balances;
 
     // cost for minting NFT
-    uint256 public cost = 85 * 10**6;
+    uint256 public cost;
 
     // whether or not mints should auto distribute
-    bool public autoDistribute = false;
+    bool public autoDistribute;
 
     // base URI
     string private baseURI = "url";
     string private ending = ".json";
 
     // Enable Trading
-    bool public mintingEnabled = false;
+    bool public mintingEnabled;
 
     // Mint Token
     IERC20 public immutable mintToken;
@@ -55,7 +55,10 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     address[] private path;
 
     constructor(address usdc) ERC721A(_name, _symbol) {
+        cost = 85 * 10**6;
         mintToken = IERC20(usdc);
+        autoDistribute = false;
+        mintingEnabled = false;
     }
 
     ////////////////////////////////////////////////
@@ -70,22 +73,14 @@ contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
     }
 
     function withdraw() external onlyOwner {
-        (bool s, ) = payable(msg.sender).call{value: address(this).balance}("");
-        require(s);
+        require(msg.sender != address(0), "Withdraw: Zero Address");
+        mintToken.transfer(msg.sender, mintToken.balanceOf(address(this)));
     }
 
     function distribute() external onlyOwner {
         _distribute();
     }
 
-    function withdrawToken(address token_) external onlyOwner {
-        require(token_ != address(0), "Zero Address");
-        IERC20(token_).transfer(
-            msg.sender,
-            IERC20(token_).balanceOf(address(this))
-        );
-    }
-    
     function _startTokenId() internal view virtual override returns (uint256) {
         return 101;
     }

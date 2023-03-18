@@ -12,13 +12,14 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     uint256 public constant SUPPLY_CAP = 5000000 * 10**18;
 
-    bool private _paused = true;
+    bool private _paused;
     bool private _enableDirectTransfer;
     uint256 private _pauseTime;
 
     constructor() ERC20("Fraction Token", "FSTS") {
         _pauseTime = block.timestamp;
         _enableDirectTransfer = true;
+        _paused = true;
         _mint(address(this), SUPPLY_CAP);
     }
 
@@ -37,7 +38,6 @@ contract FractionToken is ERC20, Ownable, ReentrancyGuard {
         require(amount <= 1000 * 10**18, "FractionToken: transfer amount exceeds maximum limit");
 
         _transfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), allowance(sender, _msgSender()) - amount);
         return true;
     }
 
