@@ -42,11 +42,8 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
     // Dev Wallet
     address public devWallet = 0x5FE49cb77be19D1970dd9b0971086A8fFFAe66E4;
 
-    struct FractOwnership {
-        mapping(uint256 => uint256) fractOwned;
-    }
     mapping(uint256 => uint256) private _availableFractions;
-    mapping(address => FractOwnership) private _fractionOwnership;
+    mapping(address => mapping (uint256 => uint256)) private _fractionOwnership;
     mapping(address => uint256[]) private _tokenIdShared;
     mapping(address => uint256) private _totalFractOwned;
     
@@ -88,24 +85,24 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
         _transferOut(_amount);
         _availableFractions[_tokenId] -= _amount;
         
-        if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
+        if (_fractionOwnership[msg.sender][_tokenId] < 1) {
             _tokenIdShared[msg.sender].push(_tokenId);
         }
-        _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
+        _fractionOwnership[msg.sender][_tokenId] += _amount;
         _totalFractOwned[msg.sender] += _amount;
         
         totalFractionSold += _amount;
         if (totalFractionSold >= breakpoint2) {
             totalFractionSold += 500;
-            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _fractionOwnership[devWallet][103] += 500;
             _totalFractOwned[devWallet] += 500;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][102] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _fractionOwnership[devWallet][102] += 1000;
             _totalFractOwned[devWallet] += 1000;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][101] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _fractionOwnership[devWallet][101] += 1000;
             _totalFractOwned[devWallet] += 1000;
         }
         
@@ -131,24 +128,24 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
             require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
         }
         
-        if (_fractionOwnership[msg.sender].fractOwned[_tokenId] < 1) {
+        if (_fractionOwnership[msg.sender][_tokenId] < 1) {
             _tokenIdShared[msg.sender].push(_tokenId);
         }
-        _fractionOwnership[msg.sender].fractOwned[_tokenId] += _amount;
+        _fractionOwnership[msg.sender][_tokenId] += _amount;
         _totalFractOwned[msg.sender] += _amount;
         
         totalFractionSold += _amount;
         if (totalFractionSold >= breakpoint2) {
             totalFractionSold += 500;
-            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _fractionOwnership[devWallet][103] += 500;
             _totalFractOwned[devWallet] += 500;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][102] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _fractionOwnership[devWallet][102] += 1000;
             _totalFractOwned[devWallet] += 1000;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][101] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _fractionOwnership[devWallet][101] += 1000;
             _totalFractOwned[devWallet] += 1000;
         }
         
@@ -161,7 +158,7 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
     }
     
     function sendFraction(address to, uint256 _tokenId, uint256 _amount) external onlyOwner {
-        require(_amount < 0, "FractionalizedNFT: invalid amount");
+        require(_amount > 0, "FractionalizedNFT: invalid amount");
         require(_tokenId >= 103 && _tokenId <= 5100, "FractionalizedNFT: invalid tokenId");
         require(_amount <= _availableFractions[_tokenId], "FractionalizedNFT: insufficient available fractions");
         
@@ -169,28 +166,27 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
             require(500 < (_availableFractions[103]), "FractionalizedNFT: this is reserved for developer");
         }
 
-        _transferOutOwner(to, _amount);
         // transfer NFT fraction from contract to buyer
         _availableFractions[_tokenId] -= _amount;
         
-        if (_fractionOwnership[to].fractOwned[_tokenId] < 1) {
+        if (_fractionOwnership[to][_tokenId] < 1) {
             _tokenIdShared[to].push(_tokenId);
         }
-        _fractionOwnership[to].fractOwned[_tokenId] += _amount;
+        _fractionOwnership[to][_tokenId] += _amount;
         _totalFractOwned[to] += _amount;
         
         totalFractionSold += _amount;
         if (totalFractionSold >= breakpoint2) {
             totalFractionSold += 500;
-            _fractionOwnership[devWallet].fractOwned[103] += 500;
+            _fractionOwnership[devWallet][103] += 500;
             _totalFractOwned[devWallet] += 500;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[102] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][102] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[102] += 1000;
+            _fractionOwnership[devWallet][102] += 1000;
             _totalFractOwned[devWallet] += 1000;
-        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet].fractOwned[101] < 1000)) {
+        } else if ((totalFractionSold >= breakpoint1) && (_fractionOwnership[devWallet][101] < 1000)) {
             totalFractionSold += 1000;
-            _fractionOwnership[devWallet].fractOwned[101] += 1000;
+            _fractionOwnership[devWallet][101] += 1000;
             _totalFractOwned[devWallet] += 1000;
         }
         
@@ -218,7 +214,7 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
     
     function _transferOutOwner(address to, uint256 amount) internal onlyOwner {
         require(
-            wsnsr.transferFrom(address(this), to, amount),
+            wsnsr.transferFrom(fractionTokenAddr, to, amount),
             "Failure Transfer From"
         );
     }
@@ -268,40 +264,36 @@ contract FractionalizedNFT is Context, ERC165Storage, ERC721Holder, Ownable, Ree
         autoDistribute = auto_;
     }
 
-    function isRightFullOwner(uint256 tokenId)
+    function isRightFullOwner(address addr, uint256 tokenId)
         external
         view
         returns (bool)
     {
-        require(wsnsr.balanceOf(msg.sender) > 0, "IsRightFullOwner: Not Enough Balance");
-        return _fractionOwnership[msg.sender].fractOwned[tokenId] == 1000;
+        return _fractionOwnership[addr][tokenId] == 1000;
     }
     
-    function fractByTokenId(uint256 tokenId)
+    function fractByTokenId(address addr, uint256 tokenId)
         external
         view
         returns (uint256)
     {
-        require(wsnsr.balanceOf(msg.sender) > 0, "FractByTokenId: Not Enough Balance");
-        return _fractionOwnership[msg.sender].fractOwned[tokenId];
+        return _fractionOwnership[addr][tokenId];
     }
     
-    function totalFractByAddress()
+    function totalFractByAddress(address addr)
         external
         view
         returns (uint256)
     {
-        require(wsnsr.balanceOf(msg.sender) > 0, "TotalFractByAddress: Not Enough Balance");
-        return _totalFractOwned[msg.sender];
+        return _totalFractOwned[addr];
     }
     
-    function tokenIdSharedByAddress()
+    function tokenIdSharedByAddress(address addr)
         external
         view
         returns (uint256[] memory)
     {
-        require(wsnsr.balanceOf(msg.sender) > 0, "TokenIdSharedByAddress: Not Enough Balance");
-        return _tokenIdShared[msg.sender];
+        return _tokenIdShared[addr];
     }
     
     function availableFracByTokenId(uint256 tokenId)

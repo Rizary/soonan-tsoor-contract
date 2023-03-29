@@ -102,7 +102,7 @@ contract StakingFractionNFT is ERC20, Ownable, ReentrancyGuard {
 
     function claimReward() external nonReentrant {
         Stake storage staker = stakes[msg.sender];
-        require(staker.amount > 0, "You have no stake.");
+        require(staker.amount > 0, "You haven't stake.");
         require(block.timestamp >= staker.timestamp.add(STAKE_DURATION), "It is not yet time to claim your reward.");
 
         uint256 rewardAmount = calculateRewards(msg.sender);
