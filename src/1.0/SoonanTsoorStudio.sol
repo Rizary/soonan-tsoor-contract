@@ -1,344 +1,225 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+/// SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.19;
 
 import {ERC721A, ERC721A__IERC721Receiver} from "@erc721A/contracts/ERC721A.sol";
+import {IERC721AQueryable} from "@erc721A/contracts/extensions/IERC721AQueryable.sol";
+import {ERC721AQueryable} from "@erc721A/contracts/extensions/ERC721AQueryable.sol";
 import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
+import {ERC165Storage} from "@openzeppelin/contracts/utils/introspection/ERC165Storage.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract SoonanTsoorStudio is Context, ERC165, ERC721A,  Ownable {
-    using Address for address;
+/// @title SoonanTsoorStudio
+/// @notice This is the main contract of Soonan Tsoor's Villa, NFT for Soonan Tsoor Project
+contract SoonanTsoorStudio is
+  ERC165Storage,
+  ERC721A,
+  ERC721AQueryable,
+  Ownable2Step,
+  ERC2981,
+  ReentrancyGuard
+{
+  IERC20 immutable _usdcToken;
+  AggregatorV3Interface immutable _priceFeed;
 
-    // Token name
-    string private constant _name = "SoonanTsoorStudio";
+  uint256 public _usdPrice;
+  
+  // Token name
+  string private constant _name = "SoonanTsoorStudio";
+  
+  // Token symbol
+  string private constant _symbol = "STS";
 
-    // Token symbol
-    string private constant _symbol = "STS";
+  // Enable Trading
+  bool public publicMintingEnabled = false;
 
-    // max supply cap
-    uint256 public constant MAX_SUPPLY = 5_000;
+  // max supply cap
+  uint256 private constant MAX_SUPPLY = 5_001;
+  
+  // Web 2.0 Wallet
+  address public teamWalletW2 = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
 
-    // Mapping from token ID to owner address
-    mapping(uint256 => address) private _owners;
+  // Web 3.0 Wallet
+  address public teamWalletW3 = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
 
-    // Mapping owner address to token count
-    mapping(address => uint256) private _balances;
+  // base URI
+  string private _baseNftURI = "url/";
+  string private _ending = ".json";
 
-    // cost for minting NFT
-    uint256 public cost;
+  constructor(address _usdc, address _feed, address fractionManager) ERC721A(_name, _symbol) {
+    _usdcToken = IERC20(_usdc);
+    _priceFeed = AggregatorV3Interface(_feed);
+    _usdPrice = 100 * 10 ** _priceFeed.decimals(); // 239 USD by default
+    _setDefaultRoyalty(msg.sender, 250);
+    _mintERC2309(fractionManager, 5000);
+  }
 
-    // whether or not mints should auto distribute
-    bool public autoDistribute;
+  /// @dev See {ERC721A-_startTokenId}.
+  function _startTokenId() internal view virtual override returns (uint256) {
+    return 1;
+  }
 
-    // base URI
-    string private baseURI = "url";
-    string private ending = ".json";
+  /// @notice Minting the NFT publicly
+  /// @dev Explain to a developer any extra details
+  function publicMint(uint256 _amount) external payable {
+    require(msg.sender == tx.origin, "public: bot is not allowed");
+    require(totalSupply() < MAX_SUPPLY, "public: supply exceeded");
+    require(publicMintingEnabled, "public: minting is not enabled");
+    uint256 price = getCurrentPrice();
+    _transferIn(price * _amount);
+    _safeMint(msg.sender, _amount);
+    _distribute();
+  }
 
-    // Enable Trading
-    bool public mintingEnabled;
+  /// @notice Minting that available only for address listed in presale
+  /// @dev We use merkle root to verify the minter and bitmap to track minted amount
+  /// @param _amount amount to be minted
+  function presale(uint256 _amount) external payable {
+    require(msg.sender == tx.origin, "presale: bot is not allowed");
+    require(totalSupply() < MAX_SUPPLY, "presale: supply exceeded");
+    require(_getAux(msg.sender) >= _amount, "presale: cannot minted more than allowed");
+    require(!publicMintingEnabled, "presale: public minting already live");
+    uint256 price = getCurrentPrice();
+    // transfer in cost
+    _transferIn(price * _amount);
+    _safeMint(msg.sender, _amount);
+    uint64 newAux = _getAux(msg.sender) - uint64(_amount);
+    _setAux(msg.sender, newAux);
+    _distribute();
+  }
 
-    // Mint Token
-    IERC20 public immutable mintToken;
+  function getAux(address owner) external view returns (uint64) {
+    return _getAux(owner);
+  }
 
-    // Web 2.0 Wallet
-    address public teamWalletW2 = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
+  function setAux(address owner, uint64 aux) external onlyOwner {
+    return _setAux(owner, aux);
+  }
 
-    // Web 3.0 Wallet
-    address public teamWalletW3 = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
+  /// @dev See {IERC165-supportsInterface}.
+  function supportsInterface(bytes4 interfaceId)
+    public
+    view
+    virtual
+    override(ERC721A, IERC721A, ERC2981, ERC165Storage)
+    returns (bool)
+  {
+    return interfaceId == type(IERC721AQueryable).interfaceId
+      || interfaceId == type(IERC721A).interfaceId || interfaceId == type(IERC20).interfaceId
+      || interfaceId == type(ERC2981).interfaceId
+      || interfaceId == type(ERC165Storage).interfaceId || super.supportsInterface(interfaceId);
+  }
 
-    // Swap Path
-    address[] private path;
+  function renounceOwnership() public pure override {
+    require(false, "cannot renounce");
+  }
 
-    constructor(address usdc) ERC721A(_name, _symbol) {
-        cost = 85 * 10**6;
-        mintToken = IERC20(usdc);
-        autoDistribute = false;
-        mintingEnabled = false;
-    }
+  function _transferIn(uint256 _amount) internal {
+    require(
+      _usdcToken.allowance(msg.sender, address(this)) >= _amount,
+      "transferIn: insufficient allowance"
+    );
+    require(
+      _usdcToken.transferFrom(msg.sender, address(this), _amount),
+      "transferFrom: cannot transfer token"
+    );
+  }
 
-    ////////////////////////////////////////////////
-    ///////////   RESTRICTED FUNCTIONS   ///////////
-    ////////////////////////////////////////////////
-    function enableMinting() external onlyOwner {
-        mintingEnabled = true;
-    }
+  function enablePublicMinting() external onlyOwner {
+    publicMintingEnabled = true;
+  }
 
-    function disableMinting() external onlyOwner {
-        mintingEnabled = false;
-    }
+  function disablePublicMinting() external onlyOwner {
+    publicMintingEnabled = false;
+  }
+  
+  function setTeamWalletW2(address teamWallet_) external onlyOwner {
+    require(teamWallet_ != address(0), "Zero Address");
+    teamWalletW2 = teamWallet_;
+  }
+  
+  function setTeamWalletW3(address teamWallet_) external onlyOwner {
+    require(teamWallet_ != address(0), "Zero Address");
+    teamWalletW3 = teamWallet_;
+  }
 
-    function withdraw() external onlyOwner {
-        require(msg.sender != address(0), "Withdraw: Zero Address");
-        mintToken.transfer(msg.sender, mintToken.balanceOf(address(this)));
-    }
+  function distribute() external onlyOwner {
+    _distribute();
+  }
 
-    function distribute() external onlyOwner {
-        _distribute();
-    }
+  /// @notice Distribution of USDC token received from minting
+  function _distribute() private {
+    uint256 currentBalance = _usdcToken.balanceOf(address(this));
+    require(currentBalance > 0, "No USDC to distribute");
 
-    function _startTokenId() internal view virtual override returns (uint256) {
-        return 101;
-    }
+    uint256 forWeb2 = currentBalance / 2;
+    uint256 forWeb3 = currentBalance / 2;
 
-    function setCost(uint256 newCost) external onlyOwner {
-        cost = newCost * 10**6;
-    }
+    _usdcToken.transfer(teamWalletW2, forWeb2);
+    _usdcToken.transfer(teamWalletW3, forWeb3);
+  }
 
-    function setBaseURI(string calldata newURI) external onlyOwner {
-        baseURI = newURI;
-    }
+  function getCurrentPrice() public view returns (uint256) {
+    (, int256 price,, uint256 updatedAt,) = _priceFeed.latestRoundData();
+    require(price > 0, "Feed price should be greater than 0");
+    require(updatedAt > block.timestamp - 86_400, "Stale Price");
+    uint256 usdcPrice = _usdPrice / uint256(price);
+    return usdcPrice;
+  }
 
-    function setURIExtention(string calldata newExtention) external onlyOwner {
-        ending = newExtention;
-    }
+  function setUSDPrice(uint256 _newPrice) external onlyOwner {
+    _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
+  }
 
-    function setAutoDistribute(bool auto_) external onlyOwner {
-        autoDistribute = auto_;
-    }
+  function ownerMint(address to, uint256 quantity) external onlyOwner {
+    // mint NFTs
+    _safeMint(to, quantity);
+  }
 
-    function setTeamWalletW2(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW2 = teamWallet_;
-    }
+  /// @dev See {ERC721A-tokenURI}
+  function tokenURI(uint256 tokenId)
+    public
+    view
+    virtual
+    override(ERC721A, IERC721A)
+    returns (string memory)
+  {
+    if (!_exists(tokenId)) revert URIQueryForNonexistentToken();
+    string memory baseURI = _baseURI();
+    return bytes(baseURI).length != 0
+      ? string(abi.encodePacked(baseURI, _toString(tokenId), _ending))
+      : "";
+  }
 
-    function setTeamWalletW3(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW3 = teamWallet_;
-    }
+  /// @dev @dev See {ERC721A-_baseURI}
+  function _baseURI() internal view virtual override returns (string memory) {
+    return _baseNftURI;
+  }
 
-    ////////////////////////////////////////////////
-    ///////////     PUBLIC FUNCTIONS     ///////////
-    ////////////////////////////////////////////////
-    
-    function ownerMint(address to, uint256 quantity) external onlyOwner {
-        // mint NFTs
-        _safeMint(to, quantity);
-    }
+  function setBaseURI(string calldata newURI) external onlyOwner {
+    _baseNftURI = newURI;
+  }
 
-    receive() external payable {}
+  function setURIExtention(string calldata newExtention) external onlyOwner {
+    _ending = newExtention;
+  }
+  
+  /**
+  * @dev See {IERC721Metadata-name}.
+  */
+  function name() public pure override(ERC721A, IERC721A) returns (string memory) {
+    return _name;
+  }
 
-    /**
-     * @dev See {IERC721-transferFrom}.
-     */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) payable public override {
-        require(balanceOf(from) > 0, "Zero Balance");
-        require(from == owner() || from == address(this), "Cannot send token");
-
-        // Allocate balances
-        _balances[from] -= 1;
-        _balances[to] += 1;
-        _owners[tokenId] = to;
-        super.transferFrom(from, to, tokenId);
-    }
-
-    ////////////////////////////////////////////////
-    ///////////     READ FUNCTIONS       ///////////
-    ////////////////////////////////////////////////
-
-    function getIDsByOwner(address owner)
-        external
-        view
-        returns (uint256[] memory)
-    {
-        uint256[] memory ids = new uint256[](balanceOf(owner));
-        uint256 totalTokenId = super.totalSupply() + 100;
-        if (balanceOf(owner) == 0) return ids;
-        uint256 count = 0;
-        for (uint256 i = 101; i <= totalTokenId; i++) {
-            if (_owners[i] == owner) {
-                ids[count] = i;
-                count++;
-            }
-        }
-        return ids;
-    }
-
-    /**
-     * @dev See {IERC165-supportsInterface}.
-     */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC165, ERC721A)
-        returns (bool)
-    {
-        return
-            interfaceId == type(IERC721A).interfaceId ||
-            super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev See {IERC721-balanceOf}.
-     */
-    function balanceOf(address pcowner) public view override returns (uint256) {
-        require(pcowner != address(0), "query for the zero address");
-        return _balances[pcowner];
-    }
-
-    /**
-     * @dev See {IERC721-ownerOf}.
-     */
-    function ownerOf(uint256 tokenId) public view virtual override returns (address) {
-        return super.ownerOf(tokenId);
-    }
-
-    /**
-     * @dev See {IERC721Metadata-name}.
-     */
-    function name() public pure override returns (string memory) {
-        return _name;
-    }
-
-    /**
-     * @dev See {IERC721Metadata-symbol}.
-     */
-    function symbol() public pure override returns (string memory) {
-        return _symbol;
-    }
-
-    /**
-     * @dev See {IERC721Metadata-tokenURI}.
-     */
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override
-        returns (string memory)
-    {
-        require(_exists(tokenId), "nonexistent token");
-
-        string memory fHalf = string.concat(baseURI, uint2str(tokenId));
-        return string.concat(fHalf, ending);
-    }
-
-    /**
-        Converts A Uint Into a String
-    */
-    function uint2str(uint256 _i)
-        internal
-        pure
-        returns (string memory _uintAsString)
-    {
-        if (_i == 0) {
-            return "0";
-        }
-        uint256 j = _i;
-        uint256 len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(len);
-        uint256 k = len;
-        while (_i != 0) {
-            k = k - 1;
-            uint8 temp = (48 + uint8(_i - (_i / 10) * 10));
-            bytes1 b1 = bytes1(temp);
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
-    }
-
-    /**
-     * @dev Returns whether `spender` is allowed to manage `tokenId`.
-     *
-     * Requirements:
-     *
-     * - `tokenId` must exist.
-     */
-    function _isApprovedOrOwner(address spender, uint256 tokenId)
-        internal
-        view
-        returns (bool)
-    {
-        require(_exists(tokenId), "ERC721: nonexistent token");
-        address pcowner = ownerOf(tokenId);
-        return (spender == pcowner ||
-            getApproved(tokenId) == spender ||
-            isApprovedForAll(pcowner, spender));
-    }
-
-    ////////////////////////////////////////////////
-    ///////////    INTERNAL FUNCTIONS    ///////////
-    ////////////////////////////////////////////////
-
-    /**
-     * @dev Same as {xref-ERC721-_safeMint-address-uint256-}[`_safeMint`], with an additional `data` parameter which is
-     * forwarded in {IERC721Receiver-onERC721Received} to contract recipients.
-     */
-    function _safeMint(address to, uint256 quantity) internal override {
-        _mintStudio(to, quantity);
-    }
-
-    /**
-     * @dev Mints `tokenId` and transfers it to `to`.
-     *
-     * WARNING: Usage of this method is discouraged, use {_safeMint} whenever possible
-     *
-     * Requirements:
-     *
-     * - `tokenId` must not exist.
-     * - `to` cannot be the zero address.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _mintStudio(address to, uint256 quantity) internal {
-        require(super.totalSupply() < MAX_SUPPLY, "All NFTs Have Been Minted");
-
-        _balances[to] += quantity;
-
-        super._mint(to, quantity);
-        emit Transfer(address(0), to, quantity);
-    }
-    
-    function _afterTokenTransfers(
-        address /*from*/, 
-        address to, 
-        uint256 _currentTokenId, 
-        uint256 quantity
-    ) internal virtual override {
-        for (uint256 i = 1; i <= quantity; i++) {
-            _owners[_currentTokenId] = to;
-            _currentTokenId++;
-        } 
-    }
-
-    function _transferIn(uint256 _amount) internal {
-        require(
-            mintToken.allowance(msg.sender, address(this)) >= _amount,
-            "Studio: Insufficient Allowance"
-        );
-        require(
-            mintToken.transferFrom(msg.sender, address(this), _amount),
-            "Studio: Failure Transfer From"
-        );
-    }
-
-    function _distribute() internal {
-        // send half of the usdc to web 2.0 business wallet
-        uint256 forWeb2 = mintToken.balanceOf(address(this)) / 2;
-        if (forWeb2 > 0) {
-            mintToken.transfer(teamWalletW2, forWeb2);
-        }
-
-        // send the rest to web 3.0 business wallet
-        uint256 forWeb3 = mintToken.balanceOf(address(this));
-        if (forWeb3 > 0) {
-            mintToken.transfer(teamWalletW3, forWeb3);
-        }
-    }
-
-    function onReceivedRetval() public pure returns (bytes4) {
-        return ERC721A__IERC721Receiver.onERC721Received.selector;
-    }
+  /**
+  * @dev See {IERC721Metadata-symbol}.
+  */
+  function symbol() public pure override(ERC721A, IERC721A) returns (string memory) {
+    return _symbol;
+  }
 }

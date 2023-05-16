@@ -1,5 +1,6 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
-solmate/=lib/solmate/src/
 @openzeppelin/=lib/openzeppelin-contracts
 @erc721A/=lib/ERC721A
+@erc1363-payable-token/=lib/erc1363-payable-token
+@chainlink/=lib/chainlink/contracts/src/

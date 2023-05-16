@@ -3,20 +3,22 @@
 pragma solidity ^0.8.15;
 
 import "forge-std/Script.sol";
-import "../src/1.0/FractionalizedNFT.sol";
+import "../src/1.0/FractionManager.sol";
 import "../src/1.0/FractionToken.sol";
 import "../src/1.0/SoonanTsoorStudio.sol";
 import "../src/1.0/SoonanTsoorVilla.sol";
-import "../src/1.0/StakingFractionNFT.sol";
+import "../src/1.0/StakingToken.sol";
+import "../src/1.0/StakingManager.sol";
 
 contract Deploy is Script {
-    address public fractionalizedNFT;
+    address public fractionManager;
     address public fractionToken;
     address payable public soonanTsoorStudio;
     address payable public soonanTsoorVilla;
-    address public stakingFractionNFT;
+    address public stakingToken;
+    address public stakingManager;
     address public USDCAddress;
-    address private OwnerAddress;
+    address private FeedAddress;
 
     event log_named_uint (string key, uint val);
 
@@ -24,38 +26,37 @@ contract Deploy is Script {
     }
 
     function run() external {
-        USDCAddress = address(0xE097d6B3100777DC31B34dC2c58fB524C2e76921);
-        // vm.envAddress("USDC_ADDRESS");
-        OwnerAddress = vm.envAddress("OWNER_WALLET_ADDRESS");
+        USDCAddress = vm.envAddress("USDC_ADDRESS");
+        FeedAddress = vm.envAddress("PRICE_FEED_ADDRESS");
         vm.startBroadcast();
         
-        SoonanTsoorVilla soonanVillaContract = new SoonanTsoorVilla(USDCAddress);
+        SoonanTsoorVilla soonanVillaContract = new SoonanTsoorVilla(USDCAddress, FeedAddress);
+        console.log("Villa deployed -->", address(soonanVillaContract));
         soonanTsoorVilla = payable(address(soonanVillaContract));
         
+        // deploy FractionManager contract
+        FractionManager fractionManagerContract = new FractionManager(fractionToken, soonanTsoorStudio, USDCAddress);
+        console.log("FractionManager deployed -->", address(fractionManagerContract));
+        fractionManager = address(fractionManagerContract);
+        
         // deploy SoonanTsoorStudio contract and mint all to owner wallet
-        SoonanTsoorStudio soonanStudioContract = new SoonanTsoorStudio(USDCAddress);
+        SoonanTsoorStudio soonanStudioContract = new SoonanTsoorStudio(USDCAddress, FeedAddress, fractionManager);
+        console.log("Studio deployed -->", address(soonanStudioContract));
         soonanTsoorStudio = payable(address(soonanStudioContract));
-        // for (uint i = 1; i <= 5000; i++) {
-        //     soonanStudioContract.ownerMint(msg.sender, 1);
-        // }
 
         FractionToken fractionTokenContract = new FractionToken();
+        console.log("FractionToken deployed -->", address(fractionTokenContract));
         fractionToken = address(fractionTokenContract);
 
-        // deploy FractionalizedNFT contract
-        FractionalizedNFT fractionalizedNFTContract = new FractionalizedNFT(fractionToken, soonanTsoorStudio, USDCAddress);
-        fractionalizedNFT = address(fractionalizedNFTContract);
-        // for (uint i = 101; i <= 5100; i++) {
-        //     soonanStudioContract.approve(fractionalizedNFT, i);
-        // }
-
-        // for (uint i = 101; i <= 5100; i++) {
-        //     fractionalizedNFTContract.fractionalize(i);
-        // }
-
-        // deploy StakingFractionNFT contract
-        StakingFractionNFT stakingFractionNFTContract = new StakingFractionNFT(fractionToken);
-        stakingFractionNFT = address(stakingFractionNFTContract);
+        // deploy StakingToken contract
+        StakingToken stakingTokenContract = new StakingToken();
+        console.log("StakingToken deployed -->", address(stakingTokenContract));
+        stakingToken = address(stakingTokenContract);
+        
+        // deploy StakingManager contract
+        StakingManager stakingManagerContract = new StakingManager(soonanTsoorVilla, soonanTsoorStudio, stakingToken, 54_666_666_666_666_666_667, 13_666_666_666_666_667, 31_536_000);
+        console.log("StakingManager deployed -->", address(stakingManagerContract));
+        stakingManager = address(stakingManagerContract);
         vm.stopBroadcast();
         
     }
