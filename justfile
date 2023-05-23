@@ -6,7 +6,7 @@ tnft:
 
 tsingle name:
     #!/usr/bin/env bash
-    FOUNDRY_PROFILE=dev forge test -f $POLYGON_MUMBAI_URL --match-contract SoonanTsoorTest  --match-path test/SoonanTsoor.t.sol --match-test {{name}}
+    FOUNDRY_PROFILE=dev forge test -f $POLYGON_MUMBAI_URL --match-contract SoonanTsoorTest  --match-path test/SoonanTsoor.t.sol --match-test {{name}} -vvvvv
 
 flatten:
     #!/usr/bin/env bash

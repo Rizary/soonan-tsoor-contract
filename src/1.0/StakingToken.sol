@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.15;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -16,7 +16,7 @@ contract StakingToken is ERC20Burnable, ERC1363, Ownable, Pausable {
     using SafeMath for uint256;
 
     constructor() ERC20("Staking Token", "SRSTS") {}
-    
+
     /// @notice pause minting token
     function pause() public onlyOwner {
         _pause();
@@ -30,13 +30,9 @@ contract StakingToken is ERC20Burnable, ERC1363, Ownable, Pausable {
     function mint(address _to, uint256 _amount) external {
         _mint(_to, _amount);
     }
-    
+
     /// @notice execute before token transfer
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override whenNotPaused {
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override whenNotPaused {
         super._beforeTokenTransfer(from, to, amount);
     }
 }
