@@ -47,10 +47,10 @@ contract SoonanTsoorTest is Test {
         stakingToken = new StakingToken();
         stakingManager = new StakingManager(
             address(villaNFT),
-            address(studioNFT),
+            address(fractionManager),
             address(stakingToken),
-            10_425_133_181_126_332,
-            2_600_202_942_669,
+            3_805_1175_038_05_750_381,
+            1_268_391_679_350_584,
             31_536_000
         );
         villaNFT.enablePublicMinting();
@@ -345,10 +345,10 @@ contract SoonanTsoorTest is Test {
         }
 
         stakingManager.depositVillas(villaNFT.tokensOfOwner(addresses[4]));
-        assertEq(stakingManager.depositsOfVilla(addresses[4]), villaNFT.tokensOfOwner(address(stakingManager)));
+        assertEq(stakingManager.depositOfVillas(addresses[4]), villaNFT.tokensOfOwner(address(stakingManager)));
 
-        vm.warp(block.timestamp + 125 days);
-        uint256 expectedReward = 125 days * 10_425_133_181_126_332;
+        vm.warp(block.timestamp + 365 days);
+        uint256 expectedReward = 365 days * 3_805_1175_038_05_750_381;
         uint256[] memory rewards = stakingManager.calculateVillaRewards(addresses[4], tokenIds);
         assertEq(rewards[0], expectedReward, "Calculated reward should match the expected reward");
 
@@ -356,38 +356,68 @@ contract SoonanTsoorTest is Test {
         stakingManager.claimVillaRewards(tokenIds);
         uint256 finalBalance = stakingToken.balanceOf(addresses[4]);
 
-        uint256 expectedClaimReward = 125 days * 10_425_133_181_126_332 * 3;
+        uint256 expectedClaimReward = 365 days * 3_805_1175_038_05_750_381 * 3;
         uint256 claimedReward = finalBalance - initialBalance;
 
         assertEq(claimedReward, expectedClaimReward, "Claimed reward should match the expected reward");
         stakingManager.withdrawVillas(tokenIds);
         for (uint256 i = 0; i < tokenIds.length; i++) {
             assertEq(villaNFT.ownerOf(tokenIds[i]), addresses[4]);
-            assertFalse(stakingManager.depositsOfVilla(addresses[4]).length > 0);
+            assertFalse(stakingManager.depositOfVillas(addresses[4]).length > 0);
         }
         vm.stopPrank();
     }
 
-    //   function testWithdraw() public {
-    //     uint256[] memory tokenIds = new uint256[](3);
-    //     tokenIds[0] = 1;
-    //     tokenIds[1] = 2;
-    //     tokenIds[2] = 3;
-    //     vm.prank(address(this));
-    //     stakingManager.unpause();
+    function test_StakingFraction() public {
+        uint256 currPrice = fractionManager.getCurrentPrice();
+        uint256 mintAmount = 500;
+        uint256 allowance = currPrice * 5_000_000;
+        uint256[] memory tokenIds = new uint256[](4);
+        tokenIds[0] = 4;
+        tokenIds[1] = 5;
+        tokenIds[2] = 6;
+        tokenIds[3] = 7;
 
-    //     vm.startPrank(addr1, addr1);
-    //     vm.deal(addr1, tokenPrice);
-    //     mintAndApprove(1, 5);
-    //     stakingManager.deposit(tokenIds);
+        fractionToken.unpause();
+        stakingManager.unpause();
+        vm.startPrank(addresses[2], addresses[2]);
+        deal(usdc, addresses[2], allowance);
+        _usdcToken.approve(address(fractionManager), allowance);
 
-    //     vm.roll(block.number + 100);
+        fractionManager.buyFraction(tokenIds[0], mintAmount);
+        fractionManager.buyFraction(tokenIds[1], mintAmount);
+        fractionManager.buyFraction(tokenIds[2], mintAmount);
+        fractionManager.buyFraction(tokenIds[3], mintAmount);
 
-    //     stakingManager.withdraw(tokenIds);
-    //     for (uint256 i = 0; i < tokenIds.length; i++) {
-    //       assertEq(presaleNFT.ownerOf(tokenIds[i]), addr1);
-    //       assertFalse(isTokenIdDeposited(addr1, tokenIds[i]));
-    //     }
-    //     vm.stopPrank();
-    //   }
+        assertEq(fractionToken.balanceOf(addresses[2]), mintAmount * 4);
+        assertEq(fractionManager.tokenIdSharedByAddress(addresses[2]).length, 4);
+        for (uint256 i; i < tokenIds.length; i++) {
+            fractionToken.approve(address(stakingManager), mintAmount * 4);
+        }
+
+        stakingManager.depositFractions(fractionManager.tokenIdSharedByAddress(addresses[2]));
+        assertEq(stakingManager.depositOfFractions(addresses[2]), mintAmount * 4);
+        assertEq(stakingManager.depositOfFractionByTokenId(addresses[2], tokenIds[0]), mintAmount);
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 expectedReward = 365 days * 1_268_391_679_350_584;
+        uint256[] memory rewards = stakingManager.calculateFractionsRewards(addresses[2], tokenIds);
+        assertEq(rewards[0], expectedReward, "Calculated reward should match the expected reward");
+
+        uint256 initialBalance = stakingToken.balanceOf(addresses[2]);
+        stakingManager.claimFractionsRewards(tokenIds);
+        uint256 finalBalance = stakingToken.balanceOf(addresses[2]);
+
+        uint256 expectedClaimReward = 365 days * 1_268_391_679_350_584 * 4;
+        uint256 claimedReward = finalBalance - initialBalance;
+
+        assertEq(claimedReward, expectedClaimReward, "Claimed reward should match the expected reward");
+        stakingManager.withdrawFractions(tokenIds);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            assertEq(fractionManager.fractByTokenId(addresses[2], tokenId), mintAmount);
+            assertFalse(stakingManager.depositOfFractions(addresses[2]) > 0);
+        }
+        vm.stopPrank();
+    }
 }

@@ -61,7 +61,7 @@ contract Deploy is Script {
 
         // deploy StakingManager contract
         StakingManager stakingManagerContract =
-        new StakingManager(soonanTsoorVilla, soonanTsoorStudio, stakingToken,             10_425_133_181_126_332, 2_600_202_942_669, 31_536_000);
+        new StakingManager(soonanTsoorVilla, soonanTsoorStudio, stakingToken,             3_805_1175_038_05_750_381, 1_268_391_679_350_583, 31_536_000);
         console.log("StakingManager deployed -->", address(stakingManagerContract));
         stakingManager = address(stakingManagerContract);
         vm.stopBroadcast();
