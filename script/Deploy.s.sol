@@ -3,12 +3,8 @@
 pragma solidity ^0.8.15;
 
 import "forge-std/Script.sol";
-import "../src/1.0/FractionManager.sol";
-import "../src/1.0/FractionToken.sol";
-import "../src/1.0/SoonanTsoorStudio.sol";
-import "../src/1.0/SoonanTsoorVilla.sol";
-import "../src/1.0/StakingToken.sol";
-import "../src/1.0/StakingManager.sol";
+import {SoonanTsoorStudio} from "../src/1.0/flatten/SoonanTsoorStudio.flatten.sol";
+import "../src/1.0/flatten/StakingManager.flatten.sol";
 
 contract Deploy is Script {
     address public fractionManager;
@@ -39,9 +35,9 @@ contract Deploy is Script {
         fractionManager = address(fractionManagerContract);
 
         console.log("Setup FractionManager...");
-        fractionTokenContract.setMaxSupply(fractionManagerContract.totalFractions());
+        fractionTokenContract.setMaxSupply(fractionManagerContract.totalFractions() * 10 ** 18);
         fractionTokenContract.unpause();
-        fractionTokenContract.mint(fractionManager, fractionManagerContract.totalFractions());
+        fractionTokenContract.mint(fractionManager, fractionManagerContract.totalFractions() * 10 ** 18);
         fractionTokenContract.pause();
         console.log("Setup finished");
 
@@ -61,7 +57,7 @@ contract Deploy is Script {
 
         // deploy StakingManager contract
         StakingManager stakingManagerContract =
-        new StakingManager(soonanTsoorVilla, soonanTsoorStudio, stakingToken,             3_805_1175_038_05_750_381, 1_268_391_679_350_583, 31_536_000);
+        new StakingManager(soonanTsoorVilla, fractionManager, stakingToken,             3_805_1175_038_05_750_381, 1_268_391_679_350_583, 15_768_000);
         console.log("StakingManager deployed -->", address(stakingManagerContract));
         stakingManager = address(stakingManagerContract);
         vm.stopBroadcast();

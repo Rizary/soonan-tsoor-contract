@@ -10,30 +10,22 @@ tsingle name:
 
 flatten:
     #!/usr/bin/env bash
-    files = [
-        "FractionManager.sol",
-        "FractionToken.sol",
-        "StakingToken.sol",
-        "StakingManager.sol",
-        "SoonanTsoorStudio.sol",
-        "SoonanTsoorVilla.sol",
-    ]
-    @for file in ${files} ; do \
-        base_filename=$${file%.*} ; \
-        echo "Flattening $${file}..." ; \
-        forge flatten -C src -o src/1.0/$${base_filename}.flatten.sol src/1.0/$${file} ; \
+    files=("FractionManager.sol" "FractionToken.sol" "StakingToken.sol" "StakingManager.sol" "SoonanTsoorStudio.sol" "SoonanTsoorVilla.sol")
+    for file in "${files[@]}" ; do 
+        base_filename="${file%.*}"  
+        echo "Flattening ${file}..." 
+        forge flatten -C src -o src/1.0/flatten/${base_filename}.flatten.sol src/1.0/${file}  
     done
 
 mumbai: flatten
     #!/usr/bin/env bash
-    FOUNDRY_PROFILE=dev
-    USDC_ADDRESS=0xE097d6B3100777DC31B34dC2c58fB524C2e76921 
-    PRICE_FEED_ADDRESS=0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0 forge script script/Deploy.s.sol:Deploy --broadcast --verify --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_DEV_KEY
+    FOUNDRY_PROFILE=dev 
+    USDC_ADDRESS=0xE097d6B3100777DC31B34dC2c58fB524C2e76921 PRICE_FEED_ADDRESS=0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0 forge script script/Deploy.s.sol:Deploy --broadcast --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY --etherscan-api-key $POLYGON_DEV_KEY -vvvv
 
 mumbaiwl:
     #!/usr/bin/env bash
     FOUNDRY_PROFILE=dev
-    USDC_ADDRESS=0xE097d6B3100777DC31B34dC2c58fB524C2e76921  PRICE_FEED_ADDRESS=0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0 forge script script/Deploy.s.sol:Deploy --broadcast --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_DEV_KEY --sig "whitelist()"
+    USDC_ADDRESS=0xE097d6B3100777DC31B34dC2c58fB524C2e76921  PRICE_FEED_ADDRESS=0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0 forge script script/Deploy.s.sol:Deploy --broadcast --rpc-url $POLYGON_MUMBAI_URL --private-key $POLYGON_MUMBAI_PRIVATE_KEY --etherscan-api-key $POLYGON_DEV_KEY --sig "whitelist()"
 
 mainnet:
     #!/usr/bin/env bash

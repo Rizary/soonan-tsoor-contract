@@ -1,12 +1,15 @@
-ProudCamel Mumbai
+SoonanTsoor Mumbai
 
 ```
-Deployer: 0x26b550806024cfeff2527b0e4c4db78afbdb2d61
-Deployed to: 0xa64e659838aa87cb4405d47186e4463d4d097ccd
-Transaction hash: 0x5797f901b687f7231b8fad135201b722f667812d2f06a8026e9fdb2358338ca7
+  FractionToken deployed --> 0x579d76891EFAf495F1024E44555E661281b6ce26
+  FractionManager deployed --> 0xf701c13149926817aff6f74E6c5FB79130f80C51
+  Studio deployed --> 0x17448B101e8d3Ddd1A296cead6F0F1B8aC1fB946
+  Villa deployed --> 0x1DECcae07DBf226dB380A5C75180DeBDEA7F9017
+  StakingToken deployed --> 0xF361DA7901168997F0418b2Df83C491FBA905124
+  StakingManager deployed --> 0x0B4dAB5b69e1d3Fa897950376FDe13D6D41bd47A
 ```
 
-ProudCamel Mainnet
+SoonanTsoor Mainnet
 
 ```
 Deployer: 0x754772e7C31910EbeD8b085B64B6f03A605b1deD

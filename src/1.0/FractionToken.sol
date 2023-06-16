@@ -48,8 +48,8 @@ contract FractionToken is ERC20Burnable, ERC1363, Ownable, ReentrancyGuard {
         require(block.timestamp >= _pauseTime, "FractionToken: time lock in effect");
         require(amount <= 1000, "FractionToken: transfer amount exceeds maximum limit");
 
-        _transfer(from, to, amount);
-        emit FractionTransfer(tokenId, amount, from, to);
+        _transfer(from, to, amount * 10 ** 18);
+        emit FractionTransfer(tokenId, amount * 10 ** 18, from, to);
         return true;
     }
 

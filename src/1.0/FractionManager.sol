@@ -23,7 +23,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
 
     uint256 public _usdPrice;
 
-    uint256 public constant FRACTION_SIZE = 1000;
+    uint256 public constant FRACTION_SIZE = 1001;
 
     // whether or not mints should auto distribute
     bool public autoDistribute = false;
@@ -43,7 +43,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     // Dev Wallet
     address public devWallet = 0x5FE49cb77be19D1970dd9b0971086A8fFFAe66E4;
 
-    mapping(uint256 => uint256) private _availableFractions;
+    mapping(uint256 => uint256) private _fractionSold;
     mapping(address => mapping(uint256 => uint256)) private _fractionOwnership;
     mapping(address => uint256[]) private _tokenIdShared;
 
@@ -61,19 +61,17 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _tokenIdShared[devWallet].push(102);
         _tokenIdShared[devWallet].push(103);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 10 * 10 ** _priceFeed.decimals(); // 100 USD by default
-        // mint all ERC20 tokens
-        for (uint256 i = 1; i < 5001; i++) {
-            _availableFractions[i] = FRACTION_SIZE;
-            _fractionOwnership[address(this)][i] += FRACTION_SIZE;
-        }
-        totalFractions = 5000 * FRACTION_SIZE;
+        _usdPrice = 10; // 100 USD by default
+        totalFractions = 5_000_000;
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
         require(_amount > 0, "FractionManager: invalid amount");
         require(_tokenId >= 3 && _tokenId < 5001, "FractionManager: invalid tokenId");
-        require(_amount <= _availableFractions[_tokenId], "FractionManager: insufficient available fractions");
+        require(_amount + _fractionSold[_tokenId] < FRACTION_SIZE, "FractionManager: insufficient available fractions");
+        if (_fractionOwnership[address(this)][_tokenId] == 0) {
+            _fractionOwnership[address(this)][_tokenId] += FRACTION_SIZE;
+        }
         uint256 price = getCurrentPrice();
         // transfer in cost
         _transferIn(price * _amount);
@@ -89,8 +87,10 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     function redeemFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
         require(_amount > 0, "FractionManager: invalid amount");
         require(_tokenId >= 3 && _tokenId < 5001, "FractionManager: invalid tokenId");
-        require(_amount <= _availableFractions[_tokenId], "FractionManager: insufficient available fractions");
-        require(_fractionOwnership[address(this)][_tokenId] > 0, "Sender do not own any fraction of the token");
+        require(_amount + _fractionSold[_tokenId] < FRACTION_SIZE, "FractionManager: insufficient available fractions");
+        if (_fractionOwnership[address(this)][_tokenId] == 0) {
+            _fractionOwnership[address(this)][_tokenId] += FRACTION_SIZE;
+        }
 
         _transferOut(_tokenId, _amount, address(this), msg.sender);
     }
@@ -98,7 +98,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     function sendFraction(address _to, uint256 _tokenId, uint256 _amount) external onlyOwner {
         require(_amount > 0, "FractionManager: invalid amount");
         require(_tokenId >= 3 && _tokenId < 5001, "FractionManager: invalid tokenId");
-        require(_amount <= _availableFractions[_tokenId], "FractionManager: insufficient available fractions");
+        require(_amount + _fractionSold[_tokenId] < FRACTION_SIZE, "FractionManager: insufficient available fractions");
         _transferOut(_tokenId, _amount, address(this), _to);
     }
 
@@ -124,11 +124,11 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
 
     function _transferOut(uint256 _tokenId, uint256 _amount, address _from, address _to) private {
         if (_tokenId == 3) {
-            require(500 < (_availableFractions[3]), "FractionManager: this is reserved for developer");
+            require(_fractionSold[3] < 501, "FractionManager: this is reserved for developer");
         }
 
         require(wsnsr.transferByManager(_tokenId, _amount, _from, _to), "FractNFT: Failure Transfer From");
-        _availableFractions[_tokenId] -= _amount;
+        _fractionSold[_tokenId] += _amount;
 
         if (_fractionOwnership[_to][_tokenId] < 1) {
             _tokenIdShared[_to].push(_tokenId);
@@ -162,11 +162,10 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         }
     }
 
-    function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
-    }
-
     function distribute() external onlyOwner {
+        uint256 balance = mintToken.balanceOf(address(this));
+
+        require(balance > 0, "Contract has no balance");
         _distribute();
     }
 
@@ -213,14 +212,18 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _availableFractions[tokenId];
+        return _fractionSold[tokenId];
     }
 
     function getCurrentPrice() public view returns (uint256) {
         (, int256 price,, uint256 updatedAt,) = _priceFeed.latestRoundData();
         require(price > 0, "Feed price should be greater than 0");
         require(updatedAt > block.timestamp - 86_400, "Stale Price");
-        uint256 usdcPrice = _usdPrice / uint256(price);
+        uint256 usdcPrice = _usdPrice * 10 ** _priceFeed.decimals() / uint256(price);
         return usdcPrice * 10 ** 6;
+    }
+
+    function setUSDPrice(uint256 _newPrice) external onlyOwner {
+        _usdPrice = _newPrice;
     }
 }

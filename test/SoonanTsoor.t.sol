@@ -10,6 +10,7 @@ import {StakingManager} from "../src/1.0/StakingManager.sol";
 import {StakingToken} from "../src/1.0/StakingToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/v0.8/interfaces/AggregatorV3Interface.sol";
+import {IERC721A} from "@erc721A/contracts/IERC721A.sol";
 
 contract SoonanTsoorTest is Test {
     FractionManager fractionManager;
@@ -37,9 +38,9 @@ contract SoonanTsoorTest is Test {
     function setUp() public {
         fractionToken = new FractionToken();
         fractionManager = new FractionManager(address(fractionToken), usdc, feed);
-        fractionToken.setMaxSupply(fractionManager.totalFractions());
+        fractionToken.setMaxSupply(fractionManager.totalFractions() * 10 ** 18);
         fractionToken.unpause();
-        fractionToken.mint(address(fractionManager), fractionManager.totalFractions());
+        fractionToken.mint(address(fractionManager), fractionManager.totalFractions() * 10 ** 18);
         fractionToken.pause();
         studioNFT = new SoonanTsoorStudio(usdc, feed, address(fractionManager));
         villaNFT = new SoonanTsoorVilla(usdc, feed);
@@ -64,7 +65,7 @@ contract SoonanTsoorTest is Test {
         assertEq(studioNFT.balanceOf(address(fractionManager)), 5000, "studio not equal to 5000");
         assertEq(
             fractionToken.balanceOf(address(fractionManager)),
-            fractionManager.totalFractions(),
+            fractionManager.totalFractions() * 10 ** 18,
             "fraction not equal to 500000000000000"
         );
     }
@@ -212,9 +213,9 @@ contract SoonanTsoorTest is Test {
         assertEq(_usdcToken.balanceOf(addresses[2]), allowance, "Total allowance is incorrect");
 
         villaNFT.publicMint(mintAmount);
-
-        assertEq(_usdcToken.balanceOf(OFFCHAIN) + _usdcToken.balanceOf(ONCHAIN), allowance, "total balance incorrect");
         vm.stopPrank();
+        villaNFT.distribute();
+        assertEq(_usdcToken.balanceOf(OFFCHAIN) + _usdcToken.balanceOf(ONCHAIN), allowance, "total balance incorrect");
     }
 
     function testOwnerMint() public {
@@ -260,17 +261,17 @@ contract SoonanTsoorTest is Test {
         vm.startPrank(addresses[2], addresses[2]);
         deal(usdc, addresses[2], allowance);
         _usdcToken.approve(address(fractionManager), allowance);
-        assertEq(fractionManager.availableFracByTokenId(5), 1000, "tokenID 4 not equal to 1000");
+        assertEq(fractionManager.availableFracByTokenId(5), 0, "tokenID 5 not equal to 0");
         fractionManager.buyFraction(4, mintAmount);
 
-        assertEq(500, fractionToken.balanceOf(addresses[2]));
+        assertEq(fractionToken.balanceOf(addresses[2]), 500 * 10 ** 18);
         assertFalse(fractionManager.isRightFullOwner(addresses[2], 4));
         fractionManager.buyFraction(4, mintAmount);
         assertTrue(fractionManager.isRightFullOwner(addresses[2], 4));
         assertEq(fractionManager.fractByTokenId(addresses[2], 4), 1000);
         fractionManager.buyFraction(5, mintAmount);
         assertEq(fractionManager.availableFracByTokenId(5), 500, "tokenID 5 not equal to 500");
-        assertEq(fractionManager.availableFracByTokenId(4), 0, "tokenId 4 not equal to 0");
+        assertEq(fractionManager.availableFracByTokenId(4), 1000, "tokenId 4 not equal to 1000");
         assertEq(fractionManager.tokenIdSharedByAddress(addresses[2]), tokenIds);
         fractionManager.redeemFraction(6, mintAmount);
         assertEq(fractionManager.fractByTokenId(addresses[2], 6), 500, "tokenId 6 not equal to 500");
@@ -283,13 +284,13 @@ contract SoonanTsoorTest is Test {
     function test_developerCheck() public {
         deal(address(fractionToken), devWallet, 0);
         fractionToken.unpause();
-        assertEq(5_000_000, fractionToken.balanceOf(address(fractionManager)));
+        assertEq(5_000_000 * 10 ** 18, fractionToken.balanceOf(address(fractionManager)));
         developerCheck(2_000_000);
-        assertEq(500, fractionToken.balanceOf(devWallet));
+        assertEq(500 * 10 ** 18, fractionToken.balanceOf(devWallet));
         developerCheck(2_000_000);
-        assertEq(1500, fractionToken.balanceOf(devWallet));
+        assertEq(1500 * 10 ** 18, fractionToken.balanceOf(devWallet));
         developerCheck(998_500);
-        assertEq(2500, fractionToken.balanceOf(devWallet));
+        assertEq(2500 * 10 ** 18, fractionToken.balanceOf(devWallet));
     }
 
     function developerCheck(uint256 _amount) private {
@@ -347,7 +348,17 @@ contract SoonanTsoorTest is Test {
         stakingManager.depositVillas(villaNFT.tokensOfOwner(addresses[4]));
         assertEq(stakingManager.depositOfVillas(addresses[4]), villaNFT.tokensOfOwner(address(stakingManager)));
 
-        vm.warp(block.timestamp + 365 days);
+        vm.expectRevert(IERC721A.TransferFromIncorrectOwner.selector);
+        stakingManager.depositVillas(tokenIds);
+
+        vm.warp(block.timestamp + 20 days);
+        try stakingManager.claimVillaRewards(tokenIds) {
+            fail("claim villa rewards should failed");
+        } catch Error(string memory reason) {
+            assertEq(reason, "can only claim reward once every month");
+        }
+
+        vm.warp(block.timestamp + 345 days);
         uint256 expectedReward = 365 days * 3_805_1175_038_05_750_381;
         uint256[] memory rewards = stakingManager.calculateVillaRewards(addresses[4], tokenIds);
         assertEq(rewards[0], expectedReward, "Calculated reward should match the expected reward");
@@ -356,7 +367,7 @@ contract SoonanTsoorTest is Test {
         stakingManager.claimVillaRewards(tokenIds);
         uint256 finalBalance = stakingToken.balanceOf(addresses[4]);
 
-        uint256 expectedClaimReward = 365 days * 3_805_1175_038_05_750_381 * 3;
+        uint256 expectedClaimReward = 365 days * 3_805_1175_038_05_750_381 * 3 * 10 ** 18;
         uint256 claimedReward = finalBalance - initialBalance;
 
         assertEq(claimedReward, expectedClaimReward, "Claimed reward should match the expected reward");
@@ -378,46 +389,45 @@ contract SoonanTsoorTest is Test {
         tokenIds[2] = 6;
         tokenIds[3] = 7;
 
+        deal(address(stakingToken), addresses[2], 0);
         fractionToken.unpause();
         stakingManager.unpause();
         vm.startPrank(addresses[2], addresses[2]);
         deal(usdc, addresses[2], allowance);
         _usdcToken.approve(address(fractionManager), allowance);
 
-        fractionManager.buyFraction(tokenIds[0], mintAmount);
-        fractionManager.buyFraction(tokenIds[1], mintAmount);
-        fractionManager.buyFraction(tokenIds[2], mintAmount);
-        fractionManager.buyFraction(tokenIds[3], mintAmount);
-
-        assertEq(fractionToken.balanceOf(addresses[2]), mintAmount * 4);
-        assertEq(fractionManager.tokenIdSharedByAddress(addresses[2]).length, 4);
         for (uint256 i; i < tokenIds.length; i++) {
-            fractionToken.approve(address(stakingManager), mintAmount * 4);
+            fractionManager.buyFraction(tokenIds[i], mintAmount);
+            assertEq(fractionManager.fractByTokenId(addresses[2], tokenIds[i]), mintAmount);
+            fractionToken.approve(address(stakingManager), mintAmount * 10 ** 18);
         }
 
-        stakingManager.depositFractions(fractionManager.tokenIdSharedByAddress(addresses[2]));
-        assertEq(stakingManager.depositOfFractions(addresses[2]), mintAmount * 4);
-        assertEq(stakingManager.depositOfFractionByTokenId(addresses[2], tokenIds[0]), mintAmount);
+        assertEq(fractionToken.balanceOf(addresses[2]), mintAmount * 4 * 10 ** 18);
+        assertEq(fractionManager.tokenIdSharedByAddress(addresses[2]).length, 4);
+        stakingManager.depositFractions(tokenIds);
+        assertEq(stakingManager.allStakedFractions(addresses[2]), mintAmount * tokenIds.length);
+        assertEq(stakingManager.stakedFractionByTokenId(addresses[2], tokenIds[0]), mintAmount);
 
         vm.warp(block.timestamp + 365 days);
-        uint256 expectedReward = 365 days * 1_268_391_679_350_584;
-        uint256[] memory rewards = stakingManager.calculateFractionsRewards(addresses[2], tokenIds);
-        assertEq(rewards[0], expectedReward, "Calculated reward should match the expected reward");
+        uint256 expectedReward = (mintAmount / 1000) * 365 days * 1_268_391_679_350_584 * tokenIds.length;
 
         uint256 initialBalance = stakingToken.balanceOf(addresses[2]);
+        assertEq(initialBalance, 0);
         stakingManager.claimFractionsRewards(tokenIds);
         uint256 finalBalance = stakingToken.balanceOf(addresses[2]);
-
-        uint256 expectedClaimReward = 365 days * 1_268_391_679_350_584 * 4;
         uint256 claimedReward = finalBalance - initialBalance;
 
-        assertEq(claimedReward, expectedClaimReward, "Claimed reward should match the expected reward");
+        assertEq(claimedReward, expectedReward, "Claimed reward should match the expected reward");
+        assertEq(stakingManager.allStakedFractions(addresses[2]), 2000);
+        vm.warp(block.timestamp + 30 days);
         stakingManager.withdrawFractions(tokenIds);
+
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             assertEq(fractionManager.fractByTokenId(addresses[2], tokenId), mintAmount);
-            assertFalse(stakingManager.depositOfFractions(addresses[2]) > 0);
         }
+        assertEq(stakingManager.allStakedFractions(addresses[2]), 0);
+
         vm.stopPrank();
     }
 }
