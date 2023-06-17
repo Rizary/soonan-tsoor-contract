@@ -43,22 +43,22 @@ contract Deploy is Script {
 
         // deploy SoonanTsoorStudio contract and mint all to owner wallet
         SoonanTsoorStudio soonanStudioContract = new SoonanTsoorStudio(USDCAddress, FeedAddress, fractionManager);
-        console.log("\"Studio\": \"", address(soonanStudioContract), "\"");
+        console.log("\"Studio\": \"", address(soonanStudioContract), "\",");
 
         soonanTsoorStudio = payable(address(soonanStudioContract));
 
         SoonanTsoorVilla soonanVillaContract = new SoonanTsoorVilla(USDCAddress, FeedAddress);
-        console.log("\"Villa\": \"", address(soonanVillaContract), "\"");
+        console.log("\"Villa\": \"", address(soonanVillaContract), "\",");
         soonanTsoorVilla = payable(address(soonanVillaContract));
 
         // deploy StakingToken contract
         StakingToken stakingTokenContract = new StakingToken();
-        console.log("\"StakingToken\": \"", address(stakingTokenContract), "\"");
+        console.log("\"StakingToken\": \"", address(stakingTokenContract), "\",");
         stakingToken = address(stakingTokenContract);
 
         // deploy StakingManager contract
         StakingManager stakingManagerContract = new StakingManager(soonanTsoorVilla, fractionManager, stakingToken);
-        console.log("\"StakingManager\": \"", address(stakingManagerContract), "\"");
+        console.log("\"StakingManager\": \"", address(stakingManagerContract), "\",");
         stakingManager = address(stakingManagerContract);
         vm.stopBroadcast();
     }
