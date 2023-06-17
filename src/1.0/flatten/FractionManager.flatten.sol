@@ -3271,7 +3271,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _tokenIdShared[devWallet].push(103);
         _priceFeed = AggregatorV3Interface(_feed);
         _usdPrice = 10; // 100 USD by default
-        totalFractions = 5000000;
+        totalFractions = 5_000_000;
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {

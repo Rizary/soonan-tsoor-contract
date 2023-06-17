@@ -1,12 +1,12 @@
-SoonanTsoor Mumbai
+SoonanTsoor Sepolia
 
 ```
-  FractionToken deployed --> 0x579d76891EFAf495F1024E44555E661281b6ce26
-  FractionManager deployed --> 0xf701c13149926817aff6f74E6c5FB79130f80C51
-  Studio deployed --> 0x17448B101e8d3Ddd1A296cead6F0F1B8aC1fB946
-  Villa deployed --> 0x1DECcae07DBf226dB380A5C75180DeBDEA7F9017
-  StakingToken deployed --> 0xF361DA7901168997F0418b2Df83C491FBA905124
-  StakingManager deployed --> 0x0B4dAB5b69e1d3Fa897950376FDe13D6D41bd47A
+  FractionToken deployed --> 0xc89d48491B69D41Bc723668E7Ba4F5edF8287FD9
+  FractionManager deployed --> 0xEB95696857A1B039337760c57055b9F93853e472
+  Studio deployed --> 0xEc31F1441F5036380E7dA69D6b0fCc1a97F518da
+  Villa deployed --> 0x451497c00f25FB0710cfcE8438433c41E07d720D
+  StakingToken deployed --> 0xf8360BAe867A9F441032a0857D127aedC0353C8A
+  StakingManager deployed --> 0xF8f7B288C2c3bde981007B4161e07170A52A1B60
 ```
 
 SoonanTsoor Mainnet
