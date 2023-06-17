@@ -41,7 +41,7 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
     constructor(address _usdc, address _feed, address fractionManager) ERC721A(_name, _symbol) {
         _usdcToken = IERC20(_usdc);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 100;
+        _usdPrice = 100 * 10 ** _priceFeed.decimals();
         _setDefaultRoyalty(msg.sender, 250);
         _mintERC2309(fractionManager, 5000);
     }
@@ -77,7 +77,7 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
     }
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice;
+        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
     }
 
     /// @dev See {ERC721A-tokenURI}

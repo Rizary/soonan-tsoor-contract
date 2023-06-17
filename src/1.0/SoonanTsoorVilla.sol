@@ -47,7 +47,7 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     constructor(address _usdc, address _feed) ERC721A(_name, _symbol) {
         _usdcToken = IERC20(_usdc);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 100;
+        _usdPrice = 100 * 10 ** _priceFeed.decimals();
         _setDefaultRoyalty(msg.sender, 250);
     }
 
@@ -156,7 +156,7 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     }
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice;
+        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
     }
 
     function ownerMint(address to, uint256 quantity) external onlyOwner {
