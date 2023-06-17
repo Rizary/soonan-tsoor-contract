@@ -34,12 +34,6 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
     // max supply cap
     uint256 private constant MAX_SUPPLY = 5_001;
 
-    // Web 2.0 Wallet
-    address public teamWalletW2 = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
-
-    // Web 3.0 Wallet
-    address public teamWalletW3 = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
-
     // base URI
     string private _baseNftURI = "url/";
     string private _ending = ".json";
@@ -47,7 +41,7 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
     constructor(address _usdc, address _feed, address fractionManager) ERC721A(_name, _symbol) {
         _usdcToken = IERC20(_usdc);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 100; // 239 USD by default
+        _usdPrice = 100;
         _setDefaultRoyalty(msg.sender, 250);
         _mintERC2309(fractionManager, 5000);
     }
@@ -55,43 +49,6 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
     /// @dev See {ERC721A-_startTokenId}.
     function _startTokenId() internal view virtual override returns (uint256) {
         return 1;
-    }
-
-    /// @notice Minting the NFT publicly
-    /// @dev Explain to a developer any extra details
-    function publicMint(uint256 _amount) external payable {
-        require(msg.sender == tx.origin, "public: bot is not allowed");
-        require(totalSupply() < MAX_SUPPLY, "public: supply exceeded");
-        require(publicMintingEnabled, "public: minting is not enabled");
-        uint256 price = getCurrentPrice();
-        _transferIn(price * _amount);
-        _safeMint(msg.sender, _amount);
-        _distribute();
-    }
-
-    /// @notice Minting that available only for address listed in presale
-    /// @dev We use merkle root to verify the minter and bitmap to track minted amount
-    /// @param _amount amount to be minted
-    function presale(uint256 _amount) external payable {
-        require(msg.sender == tx.origin, "presale: bot is not allowed");
-        require(totalSupply() < MAX_SUPPLY, "presale: supply exceeded");
-        require(_getAux(msg.sender) >= _amount, "presale: cannot minted more than allowed");
-        require(!publicMintingEnabled, "presale: public minting already live");
-        uint256 price = getCurrentPrice();
-        // transfer in cost
-        _transferIn(price * _amount);
-        _safeMint(msg.sender, _amount);
-        uint64 newAux = _getAux(msg.sender) - uint64(_amount);
-        _setAux(msg.sender, newAux);
-        _distribute();
-    }
-
-    function getAux(address owner) external view returns (uint64) {
-        return _getAux(owner);
-    }
-
-    function setAux(address owner, uint64 aux) external onlyOwner {
-        return _setAux(owner, aux);
     }
 
     /// @dev See {IERC165-supportsInterface}.
@@ -111,45 +68,6 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
         require(false, "cannot renounce");
     }
 
-    function _transferIn(uint256 _amount) internal {
-        require(_usdcToken.allowance(msg.sender, address(this)) >= _amount, "transferIn: insufficient allowance");
-        require(_usdcToken.transferFrom(msg.sender, address(this), _amount), "transferFrom: cannot transfer token");
-    }
-
-    function enablePublicMinting() external onlyOwner {
-        publicMintingEnabled = true;
-    }
-
-    function disablePublicMinting() external onlyOwner {
-        publicMintingEnabled = false;
-    }
-
-    function setTeamWalletW2(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW2 = teamWallet_;
-    }
-
-    function setTeamWalletW3(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW3 = teamWallet_;
-    }
-
-    function distribute() external onlyOwner {
-        _distribute();
-    }
-
-    /// @notice Distribution of USDC token received from minting
-    function _distribute() private {
-        uint256 currentBalance = _usdcToken.balanceOf(address(this));
-        require(currentBalance > 0, "No USDC to distribute");
-
-        uint256 forWeb2 = currentBalance / 2;
-        uint256 forWeb3 = currentBalance / 2;
-
-        _usdcToken.transfer(teamWalletW2, forWeb2);
-        _usdcToken.transfer(teamWalletW3, forWeb3);
-    }
-
     function getCurrentPrice() public view returns (uint256) {
         (, int256 price,, uint256 updatedAt,) = _priceFeed.latestRoundData();
         require(price > 0, "Feed price should be greater than 0");
@@ -160,11 +78,6 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
         _usdPrice = _newPrice;
-    }
-
-    function ownerMint(address to, uint256 quantity) external onlyOwner {
-        // mint NFTs
-        _safeMint(to, quantity);
     }
 
     /// @dev See {ERC721A-tokenURI}

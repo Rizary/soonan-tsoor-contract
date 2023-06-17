@@ -2284,11 +2284,11 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     // max supply cap
     uint256 private constant MAX_SUPPLY = 101;
 
-    // Web 2.0 Wallet
-    address public teamWalletW2 = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
+    // Rewards Wallet
+    address public rewardWallet = 0x7C8c679CE072544Aa7a73b85d5Ea9b3195Fa7Bd2;
 
-    // Web 3.0 Wallet
-    address public teamWalletW3 = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
+    // Project Wallet
+    address public projectWallet = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
 
     // base URI
     string private _baseNftURI = "url/";
@@ -2297,7 +2297,7 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     constructor(address _usdc, address _feed) ERC721A(_name, _symbol) {
         _usdcToken = IERC20(_usdc);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 100; // 100 USD by default
+        _usdPrice = 100;
         _setDefaultRoyalty(msg.sender, 250);
     }
 
@@ -2371,14 +2371,14 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
         publicMintingEnabled = false;
     }
 
-    function setTeamWalletW2(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW2 = teamWallet_;
+    function setProjectWallet(address _newWallet) external onlyOwner {
+        require(_newWallet != address(0), "Zero Address");
+        projectWallet = _newWallet;
     }
 
-    function setTeamWalletW3(address teamWallet_) external onlyOwner {
-        require(teamWallet_ != address(0), "Zero Address");
-        teamWalletW3 = teamWallet_;
+    function setRewardWallet(address _newWallet) external onlyOwner {
+        require(_newWallet != address(0), "Zero Address");
+        rewardWallet = _newWallet;
     }
 
     function distribute() external onlyOwner {
@@ -2390,11 +2390,11 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
         uint256 currentBalance = _usdcToken.balanceOf(address(this));
         require(currentBalance > 0, "No USDC to distribute");
 
-        uint256 forWeb2 = currentBalance / 2;
-        uint256 forWeb3 = currentBalance / 2;
+        uint256 forProjectWallet = currentBalance / 2;
+        uint256 forRewardWallet = currentBalance / 2;
 
-        _usdcToken.transfer(teamWalletW2, forWeb2);
-        _usdcToken.transfer(teamWalletW3, forWeb3);
+        _usdcToken.transfer(projectWallet, forProjectWallet);
+        _usdcToken.transfer(rewardWallet, forRewardWallet);
     }
 
     function getCurrentPrice() public view returns (uint256) {

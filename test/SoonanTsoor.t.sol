@@ -49,11 +49,12 @@ contract SoonanTsoorTest is Test {
         stakingManager = new StakingManager(
             address(villaNFT),
             address(fractionManager),
-            address(stakingToken),
-            3_805_1175_038_05_750_381,
-            1_268_391_679_350_584,
-            31_536_000
+            address(stakingToken)
         );
+        stakingManager.setVillaClaimDuration(30);
+        stakingManager.setVillaLockDuration(180);
+        stakingManager.setFractionClaimDuration(30);
+        stakingManager.setFractionLockDuration(180);
         villaNFT.enablePublicMinting();
         deal(usdc, addresses[2], 0);
         deal(usdc, ONCHAIN, 0);
@@ -199,8 +200,8 @@ contract SoonanTsoorTest is Test {
         uint256 currPrice = villaNFT.getCurrentPrice();
         uint256 mintAmount = 2;
         uint256 allowance = currPrice * mintAmount;
-        villaNFT.setTeamWalletW2(ONCHAIN);
-        villaNFT.setTeamWalletW3(OFFCHAIN);
+        villaNFT.setRewardWallet(ONCHAIN);
+        villaNFT.setProjectWallet(OFFCHAIN);
         deal(usdc, addresses[2], 0);
         deal(usdc, ONCHAIN, 0);
         deal(usdc, OFFCHAIN, 0);

@@ -22,11 +22,14 @@ import {ERC165Storage} from "@openzeppelin/contracts/utils/introspection/ERC165S
 contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGuard, Pausable, Ownable {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    //uint256's
-    uint256 public expiration;
+    // lock duration in month.
+    uint256 public villaLockDuration;
+    uint256 public villaClaimDuration;
+    uint256 public fractionLockDuration;
+    uint256 public fractionClaimDuration;
     //rate governs how often you receive your token
     uint256 public villaRate;
-    uint256 public studioRate;
+    uint256 public fractionRate;
 
     // mappings
     mapping(uint256 => address) public originalOwner;
@@ -40,20 +43,16 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     StakingToken private _tokenRewards;
     address _nullAddress = address(0); //0x0000000000000000000000000000000000000000;
 
-    constructor(
-        address _villa,
-        address _studioFraction,
-        address _rewards,
-        uint256 _villaRate,
-        uint256 _studioRate,
-        uint256 _expiration
-    ) {
+    constructor(address _villa, address _studioFraction, address _rewards) {
         _villaNFT = SoonanTsoorVilla(_villa);
         _fractionManager = FractionManager(_studioFraction);
         _tokenRewards = StakingToken(_rewards);
-        villaRate = _villaRate;
-        studioRate = _studioRate;
-        expiration = _expiration;
+        villaRate = 3_805_1175_038_05_750_381;
+        fractionRate = 1_268_391_679_350_584;
+        villaLockDuration = 1;
+        villaClaimDuration = 1;
+        fractionLockDuration = 1;
+        fractionClaimDuration = 1;
         _pause();
     }
 
@@ -65,24 +64,28 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         _unpause();
     }
 
-    /// @notice Set this to a block to disable the ability to continue accruing tokens past that
-    /// block timestamp.
-    function setExpiration(uint256 _expiration) public onlyOwner {
-        expiration = _expiration;
-    }
-
     /* STAKING VILLA MECHANICS */
 
     /// @notice
-    // 327,963 $STKN PER DAY for 1 NFT
-    // Token Decimal = 18
-    // Rate = 3_805_1175_038_05_750_381
+    /// Default is 327,963 $STKN PER DAY for 1 NFT
+    /// Token Decimal = 18
+    /// Rate = 3_805_1175_038_05_750_381
     /// @notice Set a multiplier for how many tokens to earn each time a block passes.
     /// @dev The formula (assuming per day) :
     ///      `rate = (X $STKN * 10^TokenDecimal) / 31_536_000`
     /// @param _rate new rate
     function setVillaRate(uint256 _rate) public onlyOwner {
         villaRate = _rate;
+    }
+
+    /// @notice set this for villa staking period
+    function setVillaLockDuration(uint256 _newValue) public onlyOwner {
+        villaLockDuration = _newValue;
+    }
+
+    /// @notice set this for villa reward claim period
+    function setVillaClaimDuration(uint256 _newValue) public onlyOwner {
+        villaClaimDuration = _newValue;
     }
 
     /// @notice deposit all NFTs to StakingManager contract address
@@ -153,7 +156,10 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
             if (rewards[i] > 0) {
                 require(msg.sender == originalOwner[tokenId], "address is not the token owner");
 
-                require(block.timestamp - lastEventTime >= 30 days, "can only claim reward once every month");
+                require(
+                    block.timestamp - lastEventTime >= villaClaimDuration * 1 days,
+                    "can only claim reward once every month"
+                );
                 lastRewardClaim[tokenId] = block.timestamp;
                 _tokenRewards.mint(msg.sender, rewards[i] * 10 ** 18);
             }
@@ -166,10 +172,10 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         for (uint256 i; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
             require(msg.sender == originalOwner[tokenId], "address is not the token owner");
-            require(_deposits[msg.sender].contains(tokenId), "Staking: token not deposited");
+            require(_deposits[msg.sender].contains(tokenId), "staking: token not deposited");
             require(
-                block.timestamp >= depositStart[tokenId] + (6 * 30 days),
-                "Staking: 6 months have not passed since deposit"
+                block.timestamp >= depositStart[tokenId] + (villaLockDuration * 1 days),
+                "staking: this token is still within the lock duration"
             );
             _deposits[msg.sender].remove(tokenId);
             _villaNFT.safeTransferFrom(address(this), msg.sender, tokenId, "");
@@ -177,12 +183,22 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         }
     }
 
-    function getRemainingLockTime(uint256 tokenId) public view returns (uint256) {
+    function getRemainingVillaLockTime(uint256 tokenId) public view returns (uint256) {
         uint256 elapsedTime = block.timestamp - depositStart[tokenId];
-        if (elapsedTime >= 6 * 30 days) {
+        if (elapsedTime >= villaLockDuration * 1 days) {
             return 0;
         }
-        return 6 * 30 days - elapsedTime;
+        return villaLockDuration * 1 days - elapsedTime;
+    }
+
+    function getRemainingVillaClaimTime(uint256 tokenId) public view returns (uint256) {
+        uint256 lastEventTime =
+            lastRewardClaim[tokenId] > depositStart[tokenId] ? lastRewardClaim[tokenId] : depositStart[tokenId];
+        uint256 elapsedTime = block.timestamp - lastEventTime;
+        if (elapsedTime >= villaClaimDuration * 1 days) {
+            return 0;
+        }
+        return villaClaimDuration * 1 days - elapsedTime;
     }
 
     /* STAKING STUDIO MECHANICS */
@@ -203,15 +219,25 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     /// @notice
-    // 109,592 $STKN PER DAY for 1000 fraction
-    // Token Decimal = 18
-    // Rate = 1_268_391_679_350_584
+    /// Default is 109,592 $STKN PER DAY for 1000 fraction
+    /// Token Decimal = 18
+    /// Rate = 1_268_391_679_350_584
     /// @notice Set a multiplier for how many tokens to earn each time a block passes.
     /// @dev The formula (assuming per day) :
     ///      `rate = (X $STKN * 10^TokenDecimal) / 31_536_000`
     /// @param _rate new rate
-    function setStudioRate(uint256 _rate) public onlyOwner {
-        studioRate = _rate;
+    function setFractionRate(uint256 _rate) public onlyOwner {
+        fractionRate = _rate;
+    }
+
+    /// @notice set this for fraction staking period
+    function setFractionLockDuration(uint256 _newValue) public onlyOwner {
+        fractionLockDuration = _newValue;
+    }
+
+    /// @notice set this for fraction reward claim period
+    function setFractionClaimDuration(uint256 _newValue) public onlyOwner {
+        fractionClaimDuration = _newValue;
     }
 
     /// @notice deposit all NFTs to StakingManager contract address
@@ -233,7 +259,10 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
             uint256 startingTime = _startStaked[msg.sender][tokenId];
 
             if (_fractionStaked[msg.sender][tokenId] > 0) {
-                require(block.timestamp - startingTime >= 30 days, "can only re-stake the fraction once every month");
+                require(
+                    block.timestamp - startingTime >= fractionClaimDuration * 1 days,
+                    "can only re-stake the fraction once every month"
+                );
                 claimFractionsReward(tokenId);
                 require(
                     _fractionManager.transferFraction(tokenId, amount, msg.sender, address(this)),
@@ -276,7 +305,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
 
         uint256 timeDelta = block.timestamp > lastEventTime ? block.timestamp - lastEventTime : 0;
 
-        return (_fractionStaked[_account][tokenId] / 1000) * timeDelta * studioRate;
+        return (_fractionStaked[_account][tokenId] / 1000) * timeDelta * fractionRate;
     }
 
     /// @notice single fraction reward claim function - Tested
@@ -285,7 +314,10 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         uint256 lastEventTime = _lastFractionClaimed[msg.sender][tokenId] > _startStaked[msg.sender][tokenId]
             ? _lastFractionClaimed[msg.sender][tokenId]
             : _startStaked[msg.sender][tokenId];
-        require(block.timestamp >= lastEventTime + 30 days, "can only withdraw the fraction once every month");
+        require(
+            block.timestamp - lastEventTime >= fractionClaimDuration * 1 days,
+            "can only withdraw the fraction once every month"
+        );
 
         uint256 rewards = calculateFractionsRewards(msg.sender, tokenId);
 
@@ -326,7 +358,10 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
             uint256 startingTime = _startStaked[msg.sender][tokenId];
-            require(block.timestamp >= startingTime + (3 * 30 days), "staking: 3 months have not passed since deposit");
+            require(
+                block.timestamp - startingTime >= fractionLockDuration * 1 days,
+                "staking: the token is still within lock period"
+            );
             claimFractionsReward(tokenId);
             require(
                 _fractionManager.transferFraction(

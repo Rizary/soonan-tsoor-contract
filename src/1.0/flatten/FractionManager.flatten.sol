@@ -3250,7 +3250,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     address public projectWallet = 0x26a3E0CBf8240E303EcdF36a2ccaef74A32692db;
 
     // Dev Wallet
-    address public devWallet = 0x5FE49cb77be19D1970dd9b0971086A8fFFAe66E4;
+    address private devWallet = 0x5FE49cb77be19D1970dd9b0971086A8fFFAe66E4;
 
     mapping(uint256 => uint256) private _fractionSold;
     mapping(address => mapping(uint256 => uint256)) private _fractionOwnership;
@@ -3286,11 +3286,6 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _transferIn(price * _amount);
 
         _transferOut(_tokenId, _amount, address(this), msg.sender);
-
-        // divide up funds
-        if (autoDistribute) {
-            _distribute();
-        }
     }
 
     function redeemFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
@@ -3371,41 +3366,35 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         }
     }
 
-    function distribute() external onlyOwner {
-        uint256 balance = mintToken.balanceOf(address(this));
+    function setProjectWallet(address _newWallet) external onlyOwner {
+        require(_newWallet != address(0), "Zero Address");
+        projectWallet = _newWallet;
+    }
 
-        require(balance > 0, "Contract has no balance");
+    function setRewardWallet(address _newWallet) external onlyOwner {
+        require(_newWallet != address(0), "Zero Address");
+        rewardWallet = _newWallet;
+    }
+
+    function distribute() external onlyOwner {
         _distribute();
     }
 
-    function withdrawToken() external payable onlyOwner {
-        uint256 balance = mintToken.balanceOf(address(this));
+    /// @notice Distribution of USDC token received from minting
+    function _distribute() private {
+        uint256 currentBalance = mintToken.balanceOf(address(this));
+        require(currentBalance > 0, "No USDC to distribute");
 
-        require(balance > 0, "Contract has no balance");
-        _distribute();
+        uint256 forProjectWallet = currentBalance / 2;
+        uint256 forRewardWallet = currentBalance / 2;
+
+        mintToken.transfer(projectWallet, forProjectWallet);
+        mintToken.transfer(rewardWallet, forRewardWallet);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC165Storage) returns (bool) {
         return interfaceId == type(IERC721A).interfaceId || interfaceId == type(IERC20).interfaceId
             || super.supportsInterface(interfaceId);
-    }
-
-    function _distribute() internal {
-        // send half of the usdc to web 2.0 business wallet
-        uint256 forWeb2 = mintToken.balanceOf(address(this)) / 2;
-        if (forWeb2 > 0) {
-            require(mintToken.transfer(projectWallet, forWeb2), "Transfer to Web2 wallet failed");
-        }
-
-        // send the rest to web 3.0 business wallet
-        uint256 forWeb3 = mintToken.balanceOf(address(this));
-        if (forWeb3 > 0) {
-            require(mintToken.transfer(projectWallet, forWeb3), "Transfer to Web3 wallet failed");
-        }
-    }
-
-    function setAutoDistribute(bool auto_) external onlyOwner {
-        autoDistribute = auto_;
     }
 
     function isRightFullOwner(address addr, uint256 tokenId) external view returns (bool) {
