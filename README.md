@@ -1,12 +1,12 @@
 SoonanTsoor Sepolia
 
 ```
-  FractionToken deployed --> 0x13B1b47E4B3ea3a56C6Bfc122EE8B1C44d6c348a
-  FractionManager deployed --> 0x440DbfdbaAfa19b2B9ba93289544266a3896EBFb
-  Studio deployed --> 0x4166017cBCCfFB9967f3Dd3dD6185E5e44D1e479
-  Villa deployed --> 0x1ef37596065bf0213439dfBf668601E967BcfbCa
-  StakingToken deployed --> 0x7c2D3Dc3f1baddF34bE5E2a2EA3dDB8198BDA66D
-  StakingManager deployed --> 0x7ecd795E568AdD957D8CA05D01cfDD625c4feDDA
+  FractionToken deployed --> 0x3071081daEC2a44B674577AAE00f9f5e9a084Ab5
+  FractionManager deployed --> 0x05a5E8FcFe9A8CBD3bd4A31Ed1185a6e5e8715EE
+  Studio deployed --> 0x6d27b2a030AAac349638A5c8829109D9841237A5
+  Villa deployed --> 0xb9261983D2e5ea9D8C41d12CeaCe514F2df1781a
+  StakingToken deployed --> 0x4b170e8E0b73e7Fe9188B11AD5b0D457E585912e
+  StakingManager deployed --> 0x27Bc870c5a0d77d6692CAAD814eF45306800A40e
 ```
 
 SoonanTsoor Mainnet

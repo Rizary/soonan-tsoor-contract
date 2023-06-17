@@ -2322,7 +2322,7 @@ contract SoonanTsoorStudio is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2
         (, int256 price,, uint256 updatedAt,) = _priceFeed.latestRoundData();
         require(price > 0, "Feed price should be greater than 0");
         require(updatedAt > block.timestamp - 86_400, "Stale Price");
-        uint256 usdcPrice = _usdPrice * 10 ** _priceFeed.decimals() / uint256(price);
+        uint256 usdcPrice = _usdPrice / uint256(price);
         return usdcPrice * 10 ** 6;
     }
 

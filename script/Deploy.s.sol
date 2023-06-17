@@ -26,12 +26,12 @@ contract Deploy is Script {
         vm.startBroadcast();
 
         FractionToken fractionTokenContract = new FractionToken();
-        console.log("FractionToken deployed -->", address(fractionTokenContract));
+        console.log("\"FractionToken\": \"", address(fractionTokenContract), "\"");
         fractionToken = address(fractionTokenContract);
 
         // deploy FractionManager contract
         FractionManager fractionManagerContract = new FractionManager(fractionToken, USDCAddress, FeedAddress);
-        console.log("FractionManager deployed -->", address(fractionManagerContract));
+        console.log("\"FractionManager\": \"", address(fractionManagerContract), "\"");
         fractionManager = address(fractionManagerContract);
 
         console.log("Setup FractionManager...");
@@ -43,21 +43,22 @@ contract Deploy is Script {
 
         // deploy SoonanTsoorStudio contract and mint all to owner wallet
         SoonanTsoorStudio soonanStudioContract = new SoonanTsoorStudio(USDCAddress, FeedAddress, fractionManager);
-        console.log("Studio deployed -->", address(soonanStudioContract));
+        console.log("\"Studio\": \"", address(soonanStudioContract), "\"");
+
         soonanTsoorStudio = payable(address(soonanStudioContract));
 
         SoonanTsoorVilla soonanVillaContract = new SoonanTsoorVilla(USDCAddress, FeedAddress);
-        console.log("Villa deployed -->", address(soonanVillaContract));
+        console.log("\"Villa\": \"", address(soonanVillaContract), "\"");
         soonanTsoorVilla = payable(address(soonanVillaContract));
 
         // deploy StakingToken contract
         StakingToken stakingTokenContract = new StakingToken();
-        console.log("StakingToken deployed -->", address(stakingTokenContract));
+        console.log("\"StakingToken\": \"", address(stakingTokenContract), "\"");
         stakingToken = address(stakingTokenContract);
 
         // deploy StakingManager contract
         StakingManager stakingManagerContract = new StakingManager(soonanTsoorVilla, fractionManager, stakingToken);
-        console.log("StakingManager deployed -->", address(stakingManagerContract));
+        console.log("\"StakingManager\": \"", address(stakingManagerContract), "\"");
         stakingManager = address(stakingManagerContract);
         vm.stopBroadcast();
     }

@@ -63,6 +63,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _priceFeed = AggregatorV3Interface(_feed);
         _usdPrice = 10; // 100 USD by default
         totalFractions = 5_000_000;
+        wsnsr.approve(msg.sender, totalFractions * 10 ** 18);
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
@@ -94,6 +95,9 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         require(_amount > 0, "FractionManager: invalid amount");
         require(_tokenId >= 3 && _tokenId < 5001, "FractionManager: invalid tokenId");
         require(_amount + _fractionSold[_tokenId] < FRACTION_SIZE, "FractionManager: insufficient available fractions");
+        if (_fractionOwnership[address(this)][_tokenId] == 0) {
+            _fractionOwnership[address(this)][_tokenId] += FRACTION_SIZE;
+        }
         _transferOut(_tokenId, _amount, address(this), _to);
     }
 
@@ -208,7 +212,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         (, int256 price,, uint256 updatedAt,) = _priceFeed.latestRoundData();
         require(price > 0, "Feed price should be greater than 0");
         require(updatedAt > block.timestamp - 86_400, "Stale Price");
-        uint256 usdcPrice = _usdPrice * 10 ** _priceFeed.decimals() / uint256(price);
+        uint256 usdcPrice = _usdPrice / uint256(price);
         return usdcPrice * 10 ** 6;
     }
 

@@ -326,7 +326,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     /// @notice all fractions reward claim function - Tested
-    function claimFractionsRewards(uint256[] calldata _tokenIds) public whenNotPaused {
+    function claimFractionsRewards(uint256[] calldata _tokenIds) public whenNotPaused nonReentrant {
         require(msg.sender != address(_fractionManager), "Invalid address");
 
         uint256 totalFraction = 0;
