@@ -5293,7 +5293,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     /// @dev The formula (assuming per day) :
     ///      `rate = (X $STKN * 10^TokenDecimal) / 31_536_000`
     /// @param _rate new rate
-    function setfractionRate(uint256 _rate) public onlyOwner {
+    function setFractionRate(uint256 _rate) public onlyOwner {
         fractionRate = _rate;
     }
 
