@@ -26,12 +26,12 @@ contract Deploy is Script {
         vm.startBroadcast();
 
         FractionToken fractionTokenContract = new FractionToken();
-        console.log("\"FractionToken\": \"", address(fractionTokenContract), "\"");
+        console.log("\"FractionToken\": \"", address(fractionTokenContract), "\",");
         fractionToken = address(fractionTokenContract);
 
         // deploy FractionManager contract
         FractionManager fractionManagerContract = new FractionManager(fractionToken, USDCAddress, FeedAddress);
-        console.log("\"FractionManager\": \"", address(fractionManagerContract), "\"");
+        console.log("\"FractionManager\": \"", address(fractionManagerContract), "\",");
         fractionManager = address(fractionManagerContract);
 
         console.log("Setup FractionManager...");

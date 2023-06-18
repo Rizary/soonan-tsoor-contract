@@ -1,12 +1,12 @@
 SoonanTsoor Sepolia
 
 ```
-  "FractionToken": " 0xA432D79639FaC36fEBf0b075807b25659899Bd75 "
-  "FractionManager": " 0xd37E349398eD50111889E3D8B3257018559C3c30 "
-  "Studio": " 0x5ee4bF8edc7B9B24f094f83F225Ac55d3876a247 "
-  "Villa": " 0xDfe960F79C0b3eCf0E1271F48082b773588EBb14 "
-  "StakingToken": " 0xBeEfF7d0f557470bd29E79106b64aC5e2891d1eC "
-  "StakingManager": " 0xCd6A1859Eb2aD68aD6667C5B75101BBc3a225a71 "
+  "FractionToken": " 0x4fb106cecE59Bf132eBD6135785ffdbecf61c27D ",
+  "FractionManager": " 0xE9017Da3f11e4803b8fAe06229a77B319A2c865E ",
+  "Studio": " 0xC1ab4CC677930d05c7FAc0717eb3D63a29812771 ",
+  "Villa": " 0xece07A93E7983a7bF82E3129643c728705E91488 ",
+  "StakingToken": " 0x88De782aa8387fC59936ffb1aca8F538eed4Caf6 ",
+  "StakingManager": " 0x2D5fb4e4ab5e2c76Ee4938e79bab5364448dC87C ",
 ```
 
 SoonanTsoor Mainnet

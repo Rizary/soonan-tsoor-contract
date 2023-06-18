@@ -3270,7 +3270,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _tokenIdShared[devWallet].push(102);
         _tokenIdShared[devWallet].push(103);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 10; // 100 USD by default
+        _usdPrice = 10 * 10 ** _priceFeed.decimals();
         totalFractions = 5_000_000;
     }
 
@@ -3402,7 +3402,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function fractByTokenId(address addr, uint256 tokenId) external view returns (uint256) {
-        return _fractionOwnership[addr][tokenId];
+        return _fractionOwnership[addr][tokenId] * 10 ** 18;
     }
 
     function tokenIdSharedByAddress(address addr) external view returns (uint256[] memory) {
@@ -3410,7 +3410,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _fractionSold[tokenId];
+        return _fractionSold[tokenId] * 10 ** 18;
     }
 
     function getCurrentPrice() public view returns (uint256) {
@@ -3422,6 +3422,6 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice;
+        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
     }
 }

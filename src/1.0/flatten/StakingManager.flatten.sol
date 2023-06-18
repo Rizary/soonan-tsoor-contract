@@ -4231,7 +4231,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _tokenIdShared[devWallet].push(102);
         _tokenIdShared[devWallet].push(103);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 10; // 100 USD by default
+        _usdPrice = 10 * 10 ** _priceFeed.decimals();
         totalFractions = 5_000_000;
     }
 
@@ -4363,7 +4363,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function fractByTokenId(address addr, uint256 tokenId) external view returns (uint256) {
-        return _fractionOwnership[addr][tokenId];
+        return _fractionOwnership[addr][tokenId] * 10 ** 18;
     }
 
     function tokenIdSharedByAddress(address addr) external view returns (uint256[] memory) {
@@ -4371,7 +4371,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _fractionSold[tokenId];
+        return _fractionSold[tokenId] * 10 ** 18;
     }
 
     function getCurrentPrice() public view returns (uint256) {
@@ -4383,7 +4383,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice;
+        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
     }
 }
 
@@ -4906,7 +4906,7 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     constructor(address _usdc, address _feed) ERC721A(_name, _symbol) {
         _usdcToken = IERC20(_usdc);
         _priceFeed = AggregatorV3Interface(_feed);
-        _usdPrice = 100;
+        _usdPrice = 100 * 10 ** _priceFeed.decimals();
         _setDefaultRoyalty(msg.sender, 250);
     }
 
@@ -5015,7 +5015,7 @@ contract SoonanTsoorVilla is ERC165Storage, ERC721A, ERC721AQueryable, Ownable2S
     }
 
     function setUSDPrice(uint256 _newPrice) external onlyOwner {
-        _usdPrice = _newPrice;
+        _usdPrice = _newPrice * 10 ** _priceFeed.decimals();
     }
 
     function ownerMint(address to, uint256 quantity) external onlyOwner {
@@ -5228,7 +5228,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
                     "can only claim reward once every month"
                 );
                 lastRewardClaim[tokenId] = block.timestamp;
-                _tokenRewards.mint(msg.sender, rewards[i] * 10 ** 18);
+                _tokenRewards.mint(msg.sender, rewards[i]);
             }
         }
     }
@@ -5270,29 +5270,16 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
 
     /* STAKING STUDIO MECHANICS */
 
-    mapping(address => uint256) private _totalFractionOwned;
     mapping(address => uint256) private _totalFractionStaked;
     mapping(address => mapping(uint256 => uint256)) private _fractionStaked;
     mapping(address => mapping(uint256 => uint256)) private _startStaked;
     mapping(address => mapping(uint256 => uint256)) private _lastFractionClaimed;
-    mapping(address => mapping(uint256 => uint256)) public lastGroupRewardClaim;
-    mapping(address => mapping(uint256 => uint256)) private _stakeGroupId;
-    mapping(address => uint256) private _numStakeGroups;
+    mapping(address => mapping(uint256 => uint256)) totalFraction;
 
-    struct Stake {
-        uint256 amount;
-        uint256 timestamp;
-        bool isActive;
-    }
-
-    /// @notice
-    /// Default is 109,592 $STKN PER DAY for 1000 fraction
-    /// Token Decimal = 18
-    /// Rate = 1_268_391_679_350_584
-    /// @notice Set a multiplier for how many tokens to earn each time a block passes.
     /// @dev The formula (assuming per day) :
     ///      `rate = (X $STKN * 10^TokenDecimal) / 31_536_000`
     /// @param _rate new rate
+
     function setFractionRate(uint256 _rate) public onlyOwner {
         fractionRate = _rate;
     }
@@ -5362,7 +5349,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     /// @notice reward amount by address/tokenIds[]
-    function calculateFractionsRewards(address _account, uint256 tokenId) public view returns (uint256 rewards) {
+    function calculateFractionsReward(address _account, uint256 tokenId) public view returns (uint256 rewards) {
         if (_fractionStaked[_account][tokenId] < 1) {
             return 0;
         }
@@ -5373,6 +5360,25 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         uint256 timeDelta = block.timestamp > lastEventTime ? block.timestamp - lastEventTime : 0;
 
         return (_fractionStaked[_account][tokenId] / 1000) * timeDelta * fractionRate;
+    }
+
+    /// @notice all fractions reward claim function - Tested
+    function calculateFractionsRewards(uint256[] calldata _tokenIds) public whenNotPaused nonReentrant {
+        require(msg.sender != address(_fractionManager), "Invalid address");
+
+        uint256 totalFraction = 0;
+
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            uint256 tokenId = _tokenIds[i];
+            totalFraction += _fractionStaked[msg.sender][tokenId];
+        }
+
+        require(totalFraction >= 1000, "minimum stake fraction should equal or greater than 1000");
+
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            uint256 tokenId = _tokenIds[i];
+            calculateFractionsReward(msg.sender, tokenId);
+        }
     }
 
     /// @notice single fraction reward claim function - Tested
@@ -5386,9 +5392,9 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
             "can only withdraw the fraction once every month"
         );
 
-        uint256 rewards = calculateFractionsRewards(msg.sender, tokenId);
+        uint256 rewards = calculateFractionsReward(msg.sender, tokenId);
 
-        _tokenRewards.mint(msg.sender, rewards * 10 ** 18);
+        _tokenRewards.mint(msg.sender, rewards);
         _lastFractionClaimed[msg.sender][tokenId] = block.timestamp;
     }
 
@@ -5440,6 +5446,25 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
             delete _startStaked[msg.sender][tokenId];
         }
         _totalFractionStaked[msg.sender] -= totalFraction;
+    }
+
+    function getRemainingFractionLockTime(uint256 tokenId) public view returns (uint256) {
+        uint256 elapsedTime = block.timestamp - _startStaked[msg.sender][tokenId];
+        if (elapsedTime >= fractionLockDuration * 1 days) {
+            return 0;
+        }
+        return fractionLockDuration * 1 days - elapsedTime;
+    }
+
+    function getRemainingFractionClaimTime(uint256 tokenId) public view returns (uint256) {
+        uint256 lastEventTime = _lastFractionClaimed[msg.sender][tokenId] > _startStaked[msg.sender][tokenId]
+            ? _lastFractionClaimed[msg.sender][tokenId]
+            : _startStaked[msg.sender][tokenId];
+        uint256 elapsedTime = block.timestamp - lastEventTime;
+        if (elapsedTime >= fractionClaimDuration * 1 days) {
+            return 0;
+        }
+        return fractionClaimDuration * 1 days - elapsedTime;
     }
 
     /**

@@ -193,7 +193,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function fractByTokenId(address addr, uint256 tokenId) external view returns (uint256) {
-        return _fractionOwnership[addr][tokenId];
+        return _fractionOwnership[addr][tokenId] * 10 ** 18;
     }
 
     function tokenIdSharedByAddress(address addr) external view returns (uint256[] memory) {
@@ -201,7 +201,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _fractionSold[tokenId];
+        return _fractionSold[tokenId] * 10 ** 18;
     }
 
     function getCurrentPrice() public view returns (uint256) {
