@@ -353,7 +353,7 @@ contract SoonanTsoorTest is Test {
         stakingManager.depositVillas(tokenIds);
 
         vm.warp(block.timestamp + 20 days);
-        try stakingManager.claimVillaRewards(tokenIds) {
+        try stakingManager.claimVillaReward(1) {
             fail("claim villa rewards should failed");
         } catch Error(string memory reason) {
             assertEq(reason, "can only claim reward once every month");
@@ -361,22 +361,22 @@ contract SoonanTsoorTest is Test {
 
         vm.warp(block.timestamp + 345 days);
         uint256 expectedReward = 365 days * 3_805_1175_038_05_750_381;
-        uint256[] memory rewards = stakingManager.calculateVillaRewards(addresses[4], tokenIds);
-        assertEq(rewards[0], expectedReward, "Calculated reward should match the expected reward");
+        uint256 reward = stakingManager.calculateVillaReward(addresses[4], 1);
+        assertEq(reward, expectedReward, "Calculated reward should match the expected reward");
 
         uint256 initialBalance = stakingToken.balanceOf(addresses[4]);
-        stakingManager.claimVillaRewards(tokenIds);
+        stakingManager.claimVillaReward(1);
         uint256 finalBalance = stakingToken.balanceOf(addresses[4]);
 
-        uint256 expectedClaimReward = 365 days * 3_805_1175_038_05_750_381 * 3 * 10 ** 18;
+        uint256 expectedClaimReward = 365 days * 3_805_1175_038_05_750_381 * 3;
         uint256 claimedReward = finalBalance - initialBalance;
 
         assertEq(claimedReward, expectedClaimReward, "Claimed reward should match the expected reward");
-        stakingManager.withdrawVillas(tokenIds);
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            assertEq(villaNFT.ownerOf(tokenIds[i]), addresses[4]);
-            assertFalse(stakingManager.depositOfVillas(addresses[4]).length > 0);
-        }
+        stakingManager.withdrawVilla(1);
+
+        assertEq(villaNFT.ownerOf(1), addresses[4]);
+        assertEq(stakingManager.depositOfVillas(addresses[4]).length, 3);
+
         vm.stopPrank();
     }
 
@@ -400,10 +400,10 @@ contract SoonanTsoorTest is Test {
         for (uint256 i; i < tokenIds.length; i++) {
             fractionManager.buyFraction(tokenIds[i], mintAmount);
             assertEq(fractionManager.fractByTokenId(addresses[2], tokenIds[i]), mintAmount);
-            fractionToken.approve(address(stakingManager), mintAmount * 10 ** 18);
+            fractionToken.approve(address(stakingManager), mintAmount);
         }
 
-        assertEq(fractionToken.balanceOf(addresses[2]), mintAmount * 4 * 10 ** 18);
+        assertEq(fractionToken.balanceOf(addresses[2]), mintAmount * 4);
         assertEq(fractionManager.tokenIdSharedByAddress(addresses[2]).length, 4);
         stakingManager.depositFractions(tokenIds);
         assertEq(stakingManager.allStakedFractions(addresses[2]), mintAmount * tokenIds.length);
@@ -419,7 +419,7 @@ contract SoonanTsoorTest is Test {
         uint256 claimedReward = finalBalance - initialBalance;
 
         assertEq(claimedReward, expectedReward, "Claimed reward should match the expected reward");
-        assertEq(stakingManager.allStakedFractions(addresses[2]), 2000);
+        assertEq(stakingManager.allStakedFractions(addresses[2]), 2000, "all staked fraction mismatch");
         vm.warp(block.timestamp + 30 days);
         stakingManager.withdrawFractions(tokenIds);
 

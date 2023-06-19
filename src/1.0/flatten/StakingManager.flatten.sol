@@ -4215,6 +4215,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
 
     mapping(uint256 => uint256) private _fractionSold;
     mapping(address => mapping(uint256 => uint256)) private _fractionOwnership;
+    mapping(address => uint256) private _totalFractionOwned;
     mapping(address => uint256[]) private _tokenIdShared;
 
     // Breakpoints for developer
@@ -4233,6 +4234,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _priceFeed = AggregatorV3Interface(_feed);
         _usdPrice = 10 * 10 ** _priceFeed.decimals();
         totalFractions = 5_000_000;
+        _totalFractionOwned[address(this)] = totalFractions * 1000;
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
@@ -4271,7 +4273,9 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         require(_fractionOwnership[_from][_tokenId] > 0, "Sender do not own any fraction of the token");
         require(wsnsr.transferByManager(_tokenId, _amount, _from, _to), "Fraction Transfer Failure");
         _fractionOwnership[_from][_tokenId] -= _amount;
+        _totalFractionOwned[_from] -= _amount;
         _fractionOwnership[_to][_tokenId] += _amount;
+        _totalFractionOwned[_to] += _amount;
 
         return true;
     }
@@ -4299,7 +4303,9 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
             _tokenIdShared[_to].push(_tokenId);
         }
         _fractionOwnership[address(this)][_tokenId] -= _amount;
+        _totalFractionOwned[address(this)] -= _amount;
         _fractionOwnership[_to][_tokenId] += _amount;
+        _totalFractionOwned[_to] += _amount;
 
         developerCheck(_amount);
 
@@ -4312,18 +4318,21 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
             require(wsnsr.transferByManager(3, 500, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 500;
             _fractionOwnership[devWallet][3] += 500;
+            _totalFractionOwned[devWallet] += 500;
         }
 
         if ((totalFractionSold >= _breakpoint1) && (_fractionOwnership[devWallet][2] < 1000)) {
             require(wsnsr.transferByManager(2, 1000, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 1000;
             _fractionOwnership[devWallet][2] += 1000;
+            _totalFractionOwned[devWallet] += 1000;
         }
 
         if ((totalFractionSold >= _breakpoint2) && (_fractionOwnership[devWallet][1] < 1000)) {
             require(wsnsr.transferByManager(1, 1000, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 1000;
             _fractionOwnership[devWallet][1] += 1000;
+            _totalFractionOwned[devWallet] += 1000;
         }
     }
 
@@ -4362,8 +4371,12 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         return _fractionOwnership[addr][tokenId] == 1000;
     }
 
+    function totalFractionOwned(address addr) external view returns (uint256) {
+        return _totalFractionOwned[addr];
+    }
+
     function fractByTokenId(address addr, uint256 tokenId) external view returns (uint256) {
-        return _fractionOwnership[addr][tokenId] * 10 ** 18;
+        return _fractionOwnership[addr][tokenId];
     }
 
     function tokenIdSharedByAddress(address addr) external view returns (uint256[] memory) {
@@ -4371,7 +4384,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _fractionSold[tokenId] * 10 ** 18;
+        return _fractionSold[tokenId];
     }
 
     function getCurrentPrice() public view returns (uint256) {
@@ -5157,18 +5170,23 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
 
     /// @notice deposit all NFTs to StakingManager contract address
     /// notes: if it is untrusted NFT, then you need to add nonReentrant
+    function depositVilla(uint256 _tokenId) external whenNotPaused {
+        require(msg.sender != address(_villaNFT), "Invalid address");
+        claimVillaReward(_tokenId);
+
+        _villaNFT.safeTransferFrom(msg.sender, address(this), _tokenId, "");
+        originalOwner[_tokenId] = msg.sender;
+        _deposits[msg.sender].add(_tokenId);
+        if (depositStart[_tokenId] == 0) {
+            depositStart[_tokenId] = block.timestamp;
+        }
+    }
+
     function depositVillas(uint256[] calldata _tokenIds) external whenNotPaused {
         require(msg.sender != address(_villaNFT), "Invalid address");
-        claimVillaRewards(_tokenIds);
-
         for (uint256 i; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
-            _villaNFT.safeTransferFrom(msg.sender, address(this), tokenId, "");
-            originalOwner[tokenId] = msg.sender;
-            _deposits[msg.sender].add(tokenId);
-            if (depositStart[tokenId] == 0) {
-                depositStart[tokenId] = block.timestamp;
-            }
+            this.depositVilla(tokenId);
         }
     }
 
@@ -5184,70 +5202,49 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         return tokenIds;
     }
 
-    /// @notice reward amount by address/tokenIds[]
-    function calculateVillaRewards(address _account, uint256[] memory _tokenIds)
-        public
-        view
-        returns (uint256[] memory rewards)
-    {
-        rewards = new uint256[](_tokenIds.length);
-
-        for (uint256 i; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-
-            // Ensure the token is actually staked by the account
-            if (!_deposits[_account].contains(tokenId)) {
-                rewards[i] = 0;
-                continue;
-            }
-
-            uint256 lastEventTime =
-                lastRewardClaim[tokenId] > depositStart[tokenId] ? lastRewardClaim[tokenId] : depositStart[tokenId];
-
-            uint256 timeDelta = block.timestamp > lastEventTime ? block.timestamp - lastEventTime : 0;
-
-            rewards[i] = timeDelta * villaRate;
+    /// @notice reward amount by address
+    function calculateVillaReward(address _account, uint256 _tokenId) public view returns (uint256 reward) {
+        // Ensure the token is actually staked by the account
+        if (!_deposits[_account].contains(_tokenId)) {
+            return 0;
         }
 
-        return rewards;
+        uint256 lastEventTime =
+            lastRewardClaim[_tokenId] > depositStart[_tokenId] ? lastRewardClaim[_tokenId] : depositStart[_tokenId];
+
+        uint256 timeDelta = block.timestamp > lastEventTime ? block.timestamp - lastEventTime : 0;
+
+        return timeDelta * villaRate;
     }
 
     /// @notice all fractions reward claim function - Tested
-    function claimVillaRewards(uint256[] calldata _tokenIds) public whenNotPaused {
-        uint256[] memory rewards = calculateVillaRewards(msg.sender, _tokenIds);
+    function claimVillaReward(uint256 _tokenId) public whenNotPaused nonReentrant {
+        uint256 reward = calculateVillaReward(msg.sender, _tokenId);
+        uint256 lastEventTime =
+            lastRewardClaim[_tokenId] > depositStart[_tokenId] ? lastRewardClaim[_tokenId] : depositStart[_tokenId];
+        if (reward > 0) {
+            require(msg.sender == originalOwner[_tokenId], "address is not the token owner");
 
-        for (uint256 i; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            uint256 lastEventTime =
-                lastRewardClaim[tokenId] > depositStart[tokenId] ? lastRewardClaim[tokenId] : depositStart[tokenId];
-            if (rewards[i] > 0) {
-                require(msg.sender == originalOwner[tokenId], "address is not the token owner");
-
-                require(
-                    block.timestamp - lastEventTime >= villaClaimDuration * 1 days,
-                    "can only claim reward once every month"
-                );
-                lastRewardClaim[tokenId] = block.timestamp;
-                _tokenRewards.mint(msg.sender, rewards[i]);
-            }
+            require(
+                block.timestamp - lastEventTime >= villaClaimDuration * 1 days, "can only claim reward once every month"
+            );
+            lastRewardClaim[_tokenId] = block.timestamp;
+            _tokenRewards.mint(msg.sender, reward);
         }
     }
 
     //withdrawal all fractions function. Tested
-    function withdrawVillas(uint256[] calldata _tokenIds) external whenNotPaused nonReentrant {
-        claimVillaRewards(_tokenIds);
-        for (uint256 i; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            require(msg.sender == originalOwner[tokenId], "address is not the token owner");
-            require(_deposits[msg.sender].contains(tokenId), "staking: token not deposited");
-            require(
-                block.timestamp >= depositStart[tokenId] + (villaLockDuration * 1 days),
-                "staking: this token is still within the lock duration"
-            );
-            _deposits[msg.sender].remove(tokenId);
-            _villaNFT.safeTransferFrom(address(this), msg.sender, tokenId, "");
-            depositStart[tokenId] = 0;
-        }
+    function withdrawVilla(uint256 _tokenId) external whenNotPaused nonReentrant {
+        claimVillaReward(_tokenId);
+        require(msg.sender == originalOwner[_tokenId], "address is not the token owner");
+        require(_deposits[msg.sender].contains(_tokenId), "staking: token not deposited");
+        require(
+            block.timestamp >= depositStart[_tokenId] + (villaLockDuration * 1 days),
+            "staking: this token is still within the lock duration"
+        );
+        _deposits[msg.sender].remove(_tokenId);
+        _villaNFT.safeTransferFrom(address(this), msg.sender, _tokenId, "");
+        depositStart[_tokenId] = 0;
     }
 
     function getRemainingVillaLockTime(uint256 tokenId) public view returns (uint256) {
@@ -5272,9 +5269,8 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
 
     mapping(address => uint256) private _totalFractionStaked;
     mapping(address => mapping(uint256 => uint256)) private _fractionStaked;
-    mapping(address => mapping(uint256 => uint256)) private _startStaked;
-    mapping(address => mapping(uint256 => uint256)) private _lastFractionClaimed;
-    mapping(address => mapping(uint256 => uint256)) totalFraction;
+    mapping(address => uint256) private _startStaked;
+    mapping(address => uint256) private _lastFractionClaimed;
 
     /// @dev The formula (assuming per day) :
     ///      `rate = (X $STKN * 10^TokenDecimal) / 31_536_000`
@@ -5295,34 +5291,20 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     /// @notice deposit all NFTs to StakingManager contract address
-    function depositFractions(uint256[] calldata _tokenIds) external whenNotPaused {
+    function depositFractions(uint256[] calldata _tokenIds) public whenNotPaused {
         require(msg.sender != address(_fractionManager), "Invalid address");
-
-        uint256 totalFraction = 0;
-
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            totalFraction += _fractionManager.fractByTokenId(msg.sender, tokenId);
-        }
-
-        require(totalFraction >= 1000, "minimum stake fraction should equal or greater than 1000");
-
+        claimFractionsRewards(_tokenIds);
+        _startStaked[msg.sender] = block.timestamp;
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
             uint256 amount = _fractionManager.fractByTokenId(msg.sender, tokenId);
-            uint256 startingTime = _startStaked[msg.sender][tokenId];
 
             if (_fractionStaked[msg.sender][tokenId] > 0) {
-                require(
-                    block.timestamp - startingTime >= fractionClaimDuration * 1 days,
-                    "can only re-stake the fraction once every month"
-                );
-                claimFractionsReward(tokenId);
                 require(
                     _fractionManager.transferFraction(tokenId, amount, msg.sender, address(this)),
                     "staking fraction: failed to stake the fraction"
                 );
-                _startStaked[msg.sender][tokenId] = block.timestamp;
+
                 _fractionStaked[msg.sender][tokenId] += amount;
                 continue;
             }
@@ -5331,12 +5313,9 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
                 _fractionManager.transferFraction(tokenId, amount, msg.sender, address(this)),
                 "staking fraction: failed to stake the fraction"
             );
-
-            _startStaked[msg.sender][tokenId] = block.timestamp;
             _fractionStaked[msg.sender][tokenId] += amount;
+            _totalFractionStaked[msg.sender] += amount;
         }
-
-        _totalFractionStaked[msg.sender] += totalFraction;
     }
 
     /// @notice check deposit amount.
@@ -5353,9 +5332,9 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         if (_fractionStaked[_account][tokenId] < 1) {
             return 0;
         }
-        uint256 lastEventTime = _lastFractionClaimed[_account][tokenId] > _startStaked[_account][tokenId]
-            ? _lastFractionClaimed[_account][tokenId]
-            : _startStaked[_account][tokenId];
+        uint256 lastEventTime = _lastFractionClaimed[_account] > _startStaked[_account]
+            ? _lastFractionClaimed[_account]
+            : _startStaked[_account];
 
         uint256 timeDelta = block.timestamp > lastEventTime ? block.timestamp - lastEventTime : 0;
 
@@ -5363,79 +5342,57 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     /// @notice all fractions reward claim function - Tested
-    function calculateFractionsRewards(uint256[] calldata _tokenIds) public whenNotPaused nonReentrant {
+    function calculateFractionsRewards(uint256[] calldata _tokenIds)
+        public
+        view
+        whenNotPaused
+        returns (uint256 rewards)
+    {
         require(msg.sender != address(_fractionManager), "Invalid address");
-
-        uint256 totalFraction = 0;
-
+        uint256 rewards;
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
-            totalFraction += _fractionStaked[msg.sender][tokenId];
+            if (_fractionStaked[msg.sender][tokenId] < 1) continue;
+            rewards += calculateFractionsReward(msg.sender, tokenId);
         }
-
-        require(totalFraction >= 1000, "minimum stake fraction should equal or greater than 1000");
-
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            calculateFractionsReward(msg.sender, tokenId);
-        }
+        return rewards;
     }
 
     /// @notice single fraction reward claim function - Tested
     function claimFractionsReward(uint256 tokenId) internal whenNotPaused {
-        require(_fractionStaked[msg.sender][tokenId] > 0, "no fraction is staked for the given token");
-        uint256 lastEventTime = _lastFractionClaimed[msg.sender][tokenId] > _startStaked[msg.sender][tokenId]
-            ? _lastFractionClaimed[msg.sender][tokenId]
-            : _startStaked[msg.sender][tokenId];
-        require(
-            block.timestamp - lastEventTime >= fractionClaimDuration * 1 days,
-            "can only withdraw the fraction once every month"
-        );
-
         uint256 rewards = calculateFractionsReward(msg.sender, tokenId);
 
         _tokenRewards.mint(msg.sender, rewards);
-        _lastFractionClaimed[msg.sender][tokenId] = block.timestamp;
+        _lastFractionClaimed[msg.sender] = block.timestamp;
     }
 
     /// @notice all fractions reward claim function - Tested
     function claimFractionsRewards(uint256[] calldata _tokenIds) public whenNotPaused nonReentrant {
         require(msg.sender != address(_fractionManager), "Invalid address");
-
-        uint256 totalFraction = 0;
-
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            totalFraction += _fractionStaked[msg.sender][tokenId];
-        }
-
-        require(totalFraction >= 1000, "minimum stake fraction should equal or greater than 1000");
+        uint256 lastEventTime = _lastFractionClaimed[msg.sender] > _startStaked[msg.sender]
+            ? _lastFractionClaimed[msg.sender]
+            : _startStaked[msg.sender];
+        uint256 timeDelta = block.timestamp - lastEventTime;
+        require(timeDelta >= fractionClaimDuration * 1 days, "can only withdraw the fraction once every month");
 
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
+            if (_fractionStaked[msg.sender][tokenId] < 1) continue;
             claimFractionsReward(tokenId);
         }
     }
 
     //withdrawal all fractions function. Tested
     function withdrawFractions(uint256[] calldata _tokenIds) external whenNotPaused nonReentrant {
-        uint256 totalFraction = 0;
-
+        uint256 rewards = calculateFractionsRewards(_tokenIds);
+        uint256 startingTime = _startStaked[msg.sender];
+        _tokenRewards.mint(msg.sender, rewards);
+        require(
+            block.timestamp - startingTime >= fractionLockDuration * 1 days,
+            "staking: the token is still within lock period"
+        );
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
-            totalFraction += _fractionStaked[msg.sender][tokenId];
-        }
-
-        require(totalFraction <= _totalFractionStaked[msg.sender], "fraction staked was not enough to be withdrawn");
-
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
-            uint256 tokenId = _tokenIds[i];
-            uint256 startingTime = _startStaked[msg.sender][tokenId];
-            require(
-                block.timestamp - startingTime >= fractionLockDuration * 1 days,
-                "staking: the token is still within lock period"
-            );
-            claimFractionsReward(tokenId);
             require(
                 _fractionManager.transferFraction(
                     tokenId, _fractionStaked[msg.sender][tokenId], address(this), msg.sender
@@ -5443,23 +5400,24 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
                 "staking fraction: failed to stake the fraction"
             );
             delete _fractionStaked[msg.sender][tokenId];
-            delete _startStaked[msg.sender][tokenId];
         }
-        _totalFractionStaked[msg.sender] -= totalFraction;
+        delete _startStaked[msg.sender];
+        delete _lastFractionClaimed[msg.sender];
+        _totalFractionStaked[msg.sender] = 0;
     }
 
-    function getRemainingFractionLockTime(uint256 tokenId) public view returns (uint256) {
-        uint256 elapsedTime = block.timestamp - _startStaked[msg.sender][tokenId];
+    function getRemainingFractionLockTime() public view returns (uint256) {
+        uint256 elapsedTime = block.timestamp - _startStaked[msg.sender];
         if (elapsedTime >= fractionLockDuration * 1 days) {
             return 0;
         }
         return fractionLockDuration * 1 days - elapsedTime;
     }
 
-    function getRemainingFractionClaimTime(uint256 tokenId) public view returns (uint256) {
-        uint256 lastEventTime = _lastFractionClaimed[msg.sender][tokenId] > _startStaked[msg.sender][tokenId]
-            ? _lastFractionClaimed[msg.sender][tokenId]
-            : _startStaked[msg.sender][tokenId];
+    function getRemainingFractionClaimTime() public view returns (uint256) {
+        uint256 lastEventTime = _lastFractionClaimed[msg.sender] > _startStaked[msg.sender]
+            ? _lastFractionClaimed[msg.sender]
+            : _startStaked[msg.sender];
         uint256 elapsedTime = block.timestamp - lastEventTime;
         if (elapsedTime >= fractionClaimDuration * 1 days) {
             return 0;

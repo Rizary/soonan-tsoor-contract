@@ -3254,6 +3254,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
 
     mapping(uint256 => uint256) private _fractionSold;
     mapping(address => mapping(uint256 => uint256)) private _fractionOwnership;
+    mapping(address => uint256) private _totalFractionOwned;
     mapping(address => uint256[]) private _tokenIdShared;
 
     // Breakpoints for developer
@@ -3272,6 +3273,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         _priceFeed = AggregatorV3Interface(_feed);
         _usdPrice = 10 * 10 ** _priceFeed.decimals();
         totalFractions = 5_000_000;
+        _totalFractionOwned[address(this)] = totalFractions * 1000;
     }
 
     function buyFraction(uint256 _tokenId, uint256 _amount) external nonReentrant {
@@ -3310,7 +3312,9 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         require(_fractionOwnership[_from][_tokenId] > 0, "Sender do not own any fraction of the token");
         require(wsnsr.transferByManager(_tokenId, _amount, _from, _to), "Fraction Transfer Failure");
         _fractionOwnership[_from][_tokenId] -= _amount;
+        _totalFractionOwned[_from] -= _amount;
         _fractionOwnership[_to][_tokenId] += _amount;
+        _totalFractionOwned[_to] += _amount;
 
         return true;
     }
@@ -3338,7 +3342,9 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
             _tokenIdShared[_to].push(_tokenId);
         }
         _fractionOwnership[address(this)][_tokenId] -= _amount;
+        _totalFractionOwned[address(this)] -= _amount;
         _fractionOwnership[_to][_tokenId] += _amount;
+        _totalFractionOwned[_to] += _amount;
 
         developerCheck(_amount);
 
@@ -3351,18 +3357,21 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
             require(wsnsr.transferByManager(3, 500, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 500;
             _fractionOwnership[devWallet][3] += 500;
+            _totalFractionOwned[devWallet] += 500;
         }
 
         if ((totalFractionSold >= _breakpoint1) && (_fractionOwnership[devWallet][2] < 1000)) {
             require(wsnsr.transferByManager(2, 1000, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 1000;
             _fractionOwnership[devWallet][2] += 1000;
+            _totalFractionOwned[devWallet] += 1000;
         }
 
         if ((totalFractionSold >= _breakpoint2) && (_fractionOwnership[devWallet][1] < 1000)) {
             require(wsnsr.transferByManager(1, 1000, address(this), devWallet), "FractNFT: Failure Transfer From");
             totalFractionSold += 1000;
             _fractionOwnership[devWallet][1] += 1000;
+            _totalFractionOwned[devWallet] += 1000;
         }
     }
 
@@ -3401,8 +3410,12 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
         return _fractionOwnership[addr][tokenId] == 1000;
     }
 
+    function totalFractionOwned(address addr) external view returns (uint256) {
+        return _totalFractionOwned[addr];
+    }
+
     function fractByTokenId(address addr, uint256 tokenId) external view returns (uint256) {
-        return _fractionOwnership[addr][tokenId] * 10 ** 18;
+        return _fractionOwnership[addr][tokenId];
     }
 
     function tokenIdSharedByAddress(address addr) external view returns (uint256[] memory) {
@@ -3410,7 +3423,7 @@ contract FractionManager is Context, ERC165Storage, Ownable, ReentrancyGuard {
     }
 
     function availableFracByTokenId(uint256 tokenId) external view returns (uint256) {
-        return _fractionSold[tokenId] * 10 ** 18;
+        return _fractionSold[tokenId];
     }
 
     function getCurrentPrice() public view returns (uint256) {
