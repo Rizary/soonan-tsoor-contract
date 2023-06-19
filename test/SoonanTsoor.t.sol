@@ -414,7 +414,7 @@ contract SoonanTsoorTest is Test {
 
         uint256 initialBalance = stakingToken.balanceOf(addresses[2]);
         assertEq(initialBalance, 0);
-        stakingManager.claimFractionsRewards(tokenIds);
+        stakingManager.claimFractionsReward();
         uint256 finalBalance = stakingToken.balanceOf(addresses[2]);
         uint256 claimedReward = finalBalance - initialBalance;
 
