@@ -90,7 +90,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
 
     /// @notice deposit all NFTs to StakingManager contract address
     /// notes: if it is untrusted NFT, then you need to add nonReentrant
-    function depositVilla(uint256 _tokenId) external whenNotPaused {
+    function depositVilla(uint256 _tokenId) public whenNotPaused {
         require(msg.sender != address(_villaNFT), "Invalid address");
         claimVillaReward(_tokenId);
 
@@ -106,7 +106,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
         require(msg.sender != address(_villaNFT), "Invalid address");
         for (uint256 i; i < _tokenIds.length; i++) {
             uint256 tokenId = _tokenIds[i];
-            this.depositVilla(tokenId);
+            depositVilla(tokenId);
         }
     }
 
@@ -154,7 +154,7 @@ contract StakingManager is ERC165Storage, ERC721A__IERC721Receiver, ReentrancyGu
     }
 
     //withdrawal all fractions function. Tested
-    function withdrawVilla(uint256 _tokenId) external whenNotPaused nonReentrant {
+    function withdrawVilla(uint256 _tokenId) external whenNotPaused {
         claimVillaReward(_tokenId);
         require(msg.sender == originalOwner[_tokenId], "address is not the token owner");
         require(_deposits[msg.sender].contains(_tokenId), "staking: token not deposited");
